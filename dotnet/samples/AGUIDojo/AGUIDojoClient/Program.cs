@@ -18,6 +18,13 @@ builder.Services.AddHttpClient("aguiserver", httpClient => httpClient.BaseAddres
 // Register the DemoService for managing demo scenarios
 builder.Services.AddSingleton<DemoService>();
 
+// Register IChatClient for components like ChatSuggestions
+builder.Services.AddChatClient(sp =>
+{
+    HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
+    return new AGUIChatClient(httpClient, "ag-ui");
+});
+
 // Register a keyed AIAgent using AGUIChatClient
 builder.Services.AddKeyedSingleton<AIAgent>("agentic-chat", (sp, key) =>
 {
