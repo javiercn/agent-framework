@@ -2,6 +2,7 @@
 
 using AGUIDojoClient.Components;
 using AGUIDojoClient.Components.Shared;
+using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.AGUI;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -10,15 +11,23 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-string serverUrl = builder.Configuration["SERVER_URL"] ?? "http://localhost:5100";
+string serverUrl = builder.Configuration["SERVER_URL"] ?? "http://localhost:5018";
 
 builder.Services.AddHttpClient("aguiserver", httpClient => httpClient.BaseAddress = new Uri(serverUrl));
 
 // Register the DemoService for managing demo scenarios
 builder.Services.AddSingleton<DemoService>();
 
-builder.Services.AddChatClient(sp => new AGUIChatClient(
-    sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver"), "ag-ui"));
+// Register a keyed AIAgent using AGUIChatClient
+builder.Services.AddKeyedSingleton<AIAgent>("agentic-chat", (sp, key) =>
+{
+    HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
+    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "ag-ui");
+    return new ChatClientAgent(
+        chatClient: aguiChatClient,
+        name: "AgenticChatAssistant",
+        description: "A helpful assistant for the agentic chat demo");
+});
 
 WebApplication app = builder.Build();
 

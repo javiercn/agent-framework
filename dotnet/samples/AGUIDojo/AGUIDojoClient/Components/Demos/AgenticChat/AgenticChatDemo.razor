@@ -2,7 +2,10 @@
 @using System.ComponentModel
 @using AGUIDojoClient.Components.Shared
 @using AGUIDojoClient.Components.Shared.Chat
+@using Microsoft.Agents.AI
+@using Microsoft.Extensions.DependencyInjection
 @inject DemoService DemoService
+@inject IServiceProvider ServiceProvider
 @implements IDisposable
 
 <div class="agentic-chat-demo">
@@ -23,9 +26,8 @@
         You are a helpful assistant.
         ";
 
-    private IChatClient? chatClient;
-    private int statefulMessageCount;
-    private readonly ChatOptions chatOptions = new();
+    private AIAgent? agent;
+    private AgentThread? thread;
     private readonly List<ChatMessage> messages = new();
     private CancellationTokenSource? currentResponseCancellation;
     private ChatMessage? currentResponseMessage;
@@ -40,19 +42,14 @@
 
     protected override void OnInitialized()
     {
-        DemoScenario? scenario = DemoService.GetScenario(ScenarioId);
-        if (scenario is not null)
-        {
-            chatClient = DemoService.CreateChatClient(scenario.Endpoint);
-        }
-
-        statefulMessageCount = 0;
+        agent = ServiceProvider.GetRequiredKeyedService<AIAgent>("agentic-chat");
+        thread = agent?.GetNewThread();
         messages.Add(new(ChatRole.System, SystemPrompt));
     }
 
     private async Task AddUserMessageAsync(ChatMessage userMessage)
     {
-        if (chatClient is null)
+        if (agent is null || thread is null)
         {
             return;
         }
@@ -64,22 +61,21 @@
         chatSuggestions?.Clear();
         await chatInput!.FocusAsync();
 
-        // Stream and display a new response from the IChatClient
+        // Stream and display a new response from the AIAgent
         var responseText = new TextContent("");
         currentResponseMessage = new ChatMessage(ChatRole.Assistant, [responseText]);
         StateHasChanged();
         currentResponseCancellation = new();
-        await foreach (var update in chatClient.GetStreamingResponseAsync(messages.Skip(statefulMessageCount), chatOptions, currentResponseCancellation.Token))
+        await foreach (AgentRunResponseUpdate update in agent.RunStreamingAsync(messages, thread, cancellationToken: currentResponseCancellation.Token))
         {
-            messages.AddMessages(update, filter: c => c is not TextContent);
-            responseText.Text += update.Text;
-            chatOptions.ConversationId = update.ConversationId;
+            ChatResponseUpdate chatUpdate = update.AsChatResponseUpdate();
+            messages.AddMessages(chatUpdate, filter: c => c is not TextContent);
+            responseText.Text += chatUpdate.Text;
             ChatMessageItem.NotifyChanged(currentResponseMessage);
         }
 
         // Store the final response in the conversation, and begin getting suggestions
         messages.Add(currentResponseMessage!);
-        statefulMessageCount = chatOptions.ConversationId is not null ? messages.Count : 0;
         currentResponseMessage = null;
         chatSuggestions?.Update(messages);
     }
@@ -101,8 +97,7 @@
         CancelAnyCurrentResponse();
         messages.Clear();
         messages.Add(new(ChatRole.System, SystemPrompt));
-        chatOptions.ConversationId = null;
-        statefulMessageCount = 0;
+        thread = agent?.GetNewThread();
         chatSuggestions?.Clear();
         await chatInput!.FocusAsync();
     }
