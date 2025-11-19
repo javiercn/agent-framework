@@ -1,25 +1,19 @@
-html {
-    min-height: 100vh;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-html, .main-background-gradient {
-    background: linear-gradient(to bottom, rgb(225 227 233), #f4f4f4 25rem);
+html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
 }
 
 body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-html::after {
-    content: '';
-    background-image: linear-gradient(to right, #3a4ed5, #3acfd5 15%, #d53abf 85%, red);
-    width: 100%;
-    height: 2px;
-    position: fixed;
-    top: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: #212121;
+    background-color: #ffffff;
 }
 
 h1 {

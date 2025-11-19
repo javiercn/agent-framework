@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 
 using AGUIDojoClient.Components;
+using AGUIDojoClient.Components.Shared;
 using Microsoft.Agents.AI.AGUI;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,9 @@ builder.Services.AddRazorComponents()
 string serverUrl = builder.Configuration["SERVER_URL"] ?? "http://localhost:5100";
 
 builder.Services.AddHttpClient("aguiserver", httpClient => httpClient.BaseAddress = new Uri(serverUrl));
+
+// Register the DemoService for managing demo scenarios
+builder.Services.AddSingleton<DemoService>();
 
 builder.Services.AddChatClient(sp => new AGUIChatClient(
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver"), "ag-ui"));

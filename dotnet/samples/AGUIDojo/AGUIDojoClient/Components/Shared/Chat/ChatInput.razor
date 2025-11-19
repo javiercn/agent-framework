@@ -39,7 +39,7 @@
         {
             try
             {
-                var module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Pages/Chat/ChatInput.razor.js");
+                var module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Shared/Chat/ChatInput.razor.js");
                 await module.InvokeVoidAsync("init", textArea);
                 await module.DisposeAsync();
             }
