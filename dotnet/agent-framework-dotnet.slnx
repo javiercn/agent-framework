@@ -20,8 +20,11 @@
   </Folder>
   <Folder Name="/Samples/AGUIClientServer/">
     <Project Path="samples/AGUIClientServer/AGUIClient/AGUIClient.csproj" />
-    <Project Path="samples/AGUIClientServer/AGUIDojoServer/AGUIDojoServer.csproj" />
     <Project Path="samples/AGUIClientServer/AGUIServer/AGUIServer.csproj" />
+  </Folder>
+  <Folder Name="/Samples/AGUIDojo/">
+    <Project Path="samples/AGUIDojo/AGUIDojoClient/AGUIDojoClient.csproj" />
+    <Project Path="samples/AGUIDojo/AGUIDojoServer/AGUIDojoServer.csproj" />
   </Folder>
   <Folder Name="/Samples/AzureFunctions/">
     <File Path="samples/AzureFunctions/.editorconfig" />
