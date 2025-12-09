@@ -19,13 +19,10 @@ internal sealed class MessageRenderer : IComponent
 
     public Task SetParametersAsync(ParameterView parameters)
     {
-        var childContent = this.ChildContent;
         parameters.SetParameterProperties(this);
-        if (!ReferenceEquals(childContent?.Target, this.ChildContent.Target) ||
-           !ReferenceEquals(childContent?.Method, this.ChildContent.Method))
-        {
-            this._renderHandle.Render(this.Render);
-        }
+        // Always render when parameters are set - the parent component (MessageList)
+        // only triggers renders when there are actual updates to show.
+        this._renderHandle.Render(this.Render);
         return Task.CompletedTask;
     }
 

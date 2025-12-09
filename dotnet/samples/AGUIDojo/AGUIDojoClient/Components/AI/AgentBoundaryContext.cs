@@ -244,6 +244,7 @@ public readonly struct ResponseUpdateSubscription : IDisposable, IEquatable<Resp
     {
         this._subscribers = subscribers;
         this._subscription = subscription;
+        this._subscribers.Add(this._subscription);
     }
 
     public void Dispose() => this._subscribers.Remove(this._subscription);

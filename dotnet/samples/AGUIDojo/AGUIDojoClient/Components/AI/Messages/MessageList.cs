@@ -9,7 +9,8 @@ internal sealed partial class MessageList : IComponent, IDisposable
 #pragma warning restore CA1812 // Internal class is apparently never instantiated
 {
     private RenderHandle _renderHandle;
-    private MessageSubscription _subscription;
+    private MessageSubscription _messageSubscription;
+    private ResponseUpdateSubscription _responseSubscription;
 
     [CascadingParameter] public MessageListContext MessageListContext { get; set; } = default!;
 
@@ -29,8 +30,9 @@ internal sealed partial class MessageList : IComponent, IDisposable
                 $"{nameof(MessageList)} does not support changing the {nameof(this.MessageListContext)} once it has been set.");
         }
 
-        // Subscribe to message updates
-        this._subscription = this.MessageListContext.AgentBoundaryContext.SubscribeToMessageChanges(this.RenderOnNewMessage);
+        // Subscribe to message updates and response updates for streaming
+        this._messageSubscription = this.MessageListContext.AgentBoundaryContext.SubscribeToMessageChanges(this.RenderOnUpdate);
+        this._responseSubscription = this.MessageListContext.AgentBoundaryContext.SubscribeToResponseUpdates(this.RenderOnUpdate);
         Log.MessageListAttached(this.MessageListContext.AgentBoundaryContext.Logger);
         Log.MessageListSubscribed(this.MessageListContext.AgentBoundaryContext.Logger);
 
@@ -40,7 +42,7 @@ internal sealed partial class MessageList : IComponent, IDisposable
         return Task.CompletedTask;
     }
 
-    private void RenderOnNewMessage() => this._renderHandle.Render(this.Render);
+    private void RenderOnUpdate() => this._renderHandle.Render(this.Render);
 
     public void Render(RenderTreeBuilder builder)
     {
@@ -71,7 +73,8 @@ internal sealed partial class MessageList : IComponent, IDisposable
     public void Dispose()
     {
         Log.MessageListDisposed(this.MessageListContext.AgentBoundaryContext.Logger);
-        ((IDisposable)this._subscription).Dispose();
+        ((IDisposable)this._messageSubscription).Dispose();
+        ((IDisposable)this._responseSubscription).Dispose();
     }
 
     private static partial class Log
