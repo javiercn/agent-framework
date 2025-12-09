@@ -82,6 +82,17 @@ builder.Services.AddKeyedSingleton<AIAgent>("human-in-the-loop", (sp, key) =>
     return new AGUIDojoClient.Components.Demos.HumanInTheLoop.HumanInTheLoopAgent(baseAgent);
 });
 
+// Register a keyed AIAgent for tool-based generative UI demo (haiku generator)
+builder.Services.AddKeyedSingleton<AIAgent>("tool-based-generative-ui", (sp, key) =>
+{
+    HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
+    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "tool_based_generative_ui");
+
+    return aguiChatClient.CreateAIAgent(
+        name: "ToolBasedGenerativeUIAssistant",
+        description: "A helpful assistant that generates haikus with Japanese text and images");
+});
+
 WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.
