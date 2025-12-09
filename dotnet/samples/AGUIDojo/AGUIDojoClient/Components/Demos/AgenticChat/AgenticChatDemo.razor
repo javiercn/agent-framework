@@ -20,6 +20,7 @@
         </div>
         
         <div class="chat-input-container">
+            <AgentSuggestions Suggestions="@suggestions" />
             <AgentInput Placeholder="Type your message..." />
         </div>
     </AgentBoundary>
@@ -27,6 +28,7 @@
 
 @code {
     private AIAgent? agent;
+    private string[] suggestions = ["Change background", "Generate sonnet"];
 
     [Parameter]
     public string ScenarioId { get; set; } = "agentic_chat";
