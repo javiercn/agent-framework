@@ -1,12 +1,16 @@
 @* Copyright (c) Microsoft. All rights reserved. *@
 @using Microsoft.AspNetCore.Components.AI
 @using Microsoft.Agents.AI
+@using Microsoft.Extensions.AI
 @using Microsoft.Extensions.DependencyInjection
+@using AGUIDojoClient.Services
 @inject IServiceProvider ServiceProvider
+@inject IBackgroundColorService BackgroundColorService
+@implements IDisposable
 
 <PageTitle>Agentic Chat</PageTitle>
 
-<div class="chat-layout">
+<div class="chat-layout" style="@GetBackgroundStyle()">
     <div class="chat-header">
         <div class="chat-title">AGUI WebChat</div>
         <button class="new-chat-button" @onclick="ResetConversationAsync">
@@ -28,7 +32,11 @@
 
 @code {
     private AIAgent? agent;
-    private string[] suggestions = ["Change background", "Generate sonnet"];
+    private string? _backgroundColor;
+    private Suggestion[] suggestions = [
+        new Suggestion("Change background", new ChatMessage(ChatRole.User, "Change background to light blue")),
+        new Suggestion("Generate sonnet")
+    ];
 
     [Parameter]
     public string ScenarioId { get; set; } = "agentic_chat";
@@ -36,11 +44,28 @@
     protected override void OnInitialized()
     {
         agent = ServiceProvider.GetRequiredKeyedService<AIAgent>("agentic-chat");
+        BackgroundColorService.ColorChanged += OnColorChanged;
+    }
+
+    private string GetBackgroundStyle()
+    {
+        return _backgroundColor != null ? $"background-color: {_backgroundColor}" : "";
+    }
+
+    private async void OnColorChanged(object? sender, BackgroundColorChangedEventArgs e)
+    {
+        _backgroundColor = e.Color;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void ResetConversationAsync()
     {
         // Reset would need to be implemented in AgentBoundary
         StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        BackgroundColorService.ColorChanged -= OnColorChanged;
     }
 }

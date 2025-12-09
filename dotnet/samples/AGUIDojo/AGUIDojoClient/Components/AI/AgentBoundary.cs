@@ -45,13 +45,27 @@ public partial class AgentStateBoundary<TState> : IComponent, IDisposable
             throw new InvalidOperationException("AgentBoundary requires an Agent parameter.");
         }
 
-        var thread = this.Thread ?? this.Agent.GetNewThread();
+        // Use Thread parameter if provided, otherwise keep existing thread or create new one
+        var thread = this.Thread ?? this._currentThread ?? this.Agent.GetNewThread();
 
         TState? currentState = this._context != null ? this._context.CurrentState : default;
 
-        bool refresh = this.Agent != this._currentAgent ||
-            thread != this._currentThread ||
-            !EqualityComparer<TState?>.Default.Equals(this.State, currentState);
+        bool agentChanged = this.Agent != this._currentAgent;
+        bool threadChanged = thread != this._currentThread;
+        bool stateChanged = !EqualityComparer<TState?>.Default.Equals(this.State, currentState);
+
+        bool refresh = agentChanged || threadChanged || stateChanged;
+
+        Log.AgentBoundaryRefreshCheck(
+            this.Logger,
+            refresh,
+            agentChanged,
+            threadChanged,
+            stateChanged,
+            this.Agent?.GetHashCode() ?? 0,
+            this._currentAgent?.GetHashCode() ?? 0,
+            thread?.GetHashCode() ?? 0,
+            this._currentThread?.GetHashCode() ?? 0);
 
         if (refresh)
         {
@@ -65,7 +79,8 @@ public partial class AgentStateBoundary<TState> : IComponent, IDisposable
         this._currentAgent = this.Agent;
         this._currentThread = thread;
 
-        this._context ??= new AgentBoundaryContext<TState>(this._currentAgent, this._currentThread, this.Logger);
+        // Agent is validated non-null above, thread is either from Thread parameter or GetNewThread()
+        this._context ??= new AgentBoundaryContext<TState>(this.Agent!, thread!, this.Logger);
         this._context.CurrentState = this.State;
 
         if (refresh)
@@ -121,6 +136,9 @@ public partial class AgentStateBoundary<TState> : IComponent, IDisposable
     {
         [LoggerMessage(Level = LogLevel.Debug, Message = "AgentStateBoundary attached to render handle")]
         public static partial void AgentBoundaryAttached(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentStateBoundary refresh check: refresh={Refresh}, agentChanged={AgentChanged}, threadChanged={ThreadChanged}, stateChanged={StateChanged}, agentHash={AgentHash}, currentAgentHash={CurrentAgentHash}, threadHash={ThreadHash}, currentThreadHash={CurrentThreadHash}")]
+        public static partial void AgentBoundaryRefreshCheck(ILogger logger, bool refresh, bool agentChanged, bool threadChanged, bool stateChanged, int agentHash, int currentAgentHash, int threadHash, int currentThreadHash);
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "AgentStateBoundary parameters set, refresh required: {RefreshRequired}")]
         public static partial void AgentBoundaryParametersSet(ILogger logger, bool refreshRequired);

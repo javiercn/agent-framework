@@ -83,7 +83,7 @@ public sealed partial class AgentBoundaryContext<TState> : IAgentBoundaryContext
                 // Finalize the previous message's content if we have 2 or more messages now.
                 if (this._pendingMessages.Count > userMessages.Length + 1)
                 {
-                    MessageHelpers.CoalesceContent(this._messages[this._messages.Count - 2].Contents);
+                    MessageHelpers.CoalesceContent(this._pendingMessages[this._pendingMessages.Count - 2].Contents);
                 }
 
                 // Notify subscribers of new message
