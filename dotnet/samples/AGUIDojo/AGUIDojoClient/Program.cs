@@ -57,6 +57,17 @@ builder.Services.AddKeyedSingleton<AIAgent>("agentic-chat", (sp, key) =>
         tools: frontendTools);
 });
 
+// Register a keyed AIAgent for backend tool rendering (weather demo)
+builder.Services.AddKeyedSingleton<AIAgent>("backend-tool-rendering", (sp, key) =>
+{
+    HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
+    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "backend_tool_rendering");
+
+    return aguiChatClient.CreateAIAgent(
+        name: "BackendToolRenderingAssistant",
+        description: "A helpful assistant that can look up weather information");
+});
+
 WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.

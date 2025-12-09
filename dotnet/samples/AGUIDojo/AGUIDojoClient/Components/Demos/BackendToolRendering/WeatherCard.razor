@@ -1,0 +1,57 @@
+@* Copyright (c) Microsoft. All rights reserved. *@
+@using AGUIDojoClient.Components.Shared
+
+<div class="weather-card @GetConditionClass()">
+    <div class="weather-header">
+        <div class="weather-location">
+            <h3>@Location</h3>
+            <p>Current Weather</p>
+        </div>
+        <span class="weather-icon">@Weather.ConditionIcon</span>
+    </div>
+    
+    <div class="weather-main">
+        <div class="temperature">
+            <span class="temp-value">@Weather.Temperature° C</span>
+            <span class="temp-fahrenheit">/ @Weather.TemperatureFahrenheit.ToString("F1")° F</span>
+        </div>
+        <div class="conditions">@Weather.Conditions</div>
+    </div>
+    
+    <div class="weather-details">
+        <div class="detail-item">
+            <p class="detail-label">Humidity</p>
+            <p class="detail-value">@(Weather.Humidity)%</p>
+        </div>
+        <div class="detail-item">
+            <p class="detail-label">Wind</p>
+            <p class="detail-value">@Weather.WindSpeed mph</p>
+        </div>
+        <div class="detail-item">
+            <p class="detail-label">Feels Like</p>
+            <p class="detail-value">@(Weather.FeelsLike)°</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public WeatherInfo Weather { get; set; } = default!;
+
+    [Parameter]
+    public string Location { get; set; } = "Unknown";
+
+    private string GetConditionClass()
+    {
+        return Weather.Conditions.ToLowerInvariant() switch
+        {
+            "sunny" or "clear" => "condition-sunny",
+            "cloudy" or "overcast" => "condition-cloudy",
+            "rainy" or "rain" => "condition-rainy",
+            "stormy" or "thunderstorm" => "condition-stormy",
+            "snowy" or "snow" => "condition-snowy",
+            "foggy" or "fog" => "condition-foggy",
+            _ => "condition-default"
+        };
+    }
+}

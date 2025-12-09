@@ -2,6 +2,7 @@
 @page "/microsoft-agent-framework/feature/{scenarioId}"
 @using AGUIDojoClient.Components.Shared
 @using AGUIDojoClient.Components.Demos.AgenticChat
+@using AGUIDojoClient.Components.Demos.BackendToolRendering
 @rendermode InteractiveServer
 @inject DemoService DemoService
 @inject NavigationManager Nav
@@ -98,6 +99,12 @@
             case "agentic_chat":
                 builder.OpenComponent<AgenticChatDemo>(0);
                 builder.AddAttribute(1, nameof(AgenticChatDemo.ScenarioId), scenario.Id);
+                builder.CloseComponent();
+                break;
+
+            case "backend_tool_rendering":
+                builder.OpenComponent<BackendToolRenderingDemo>(0);
+                builder.AddAttribute(1, nameof(BackendToolRenderingDemo.ScenarioId), scenario.Id);
                 builder.CloseComponent();
                 break;
 
