@@ -22,14 +22,14 @@ builder.Services.AddSingleton<DemoService>();
 builder.Services.AddChatClient(sp =>
 {
     HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
-    return new AGUIChatClient(httpClient, "ag-ui");
+    return new AGUIChatClient(httpClient, "agentic_chat");
 });
 
 // Register a keyed AIAgent using AGUIChatClient
 builder.Services.AddKeyedSingleton<AIAgent>("agentic-chat", (sp, key) =>
 {
     HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
-    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "ag-ui");
+    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "agentic_chat");
     return new ChatClientAgent(
         chatClient: aguiChatClient,
         name: "AgenticChatAssistant",

@@ -1,107 +1,44 @@
 @* Copyright (c) Microsoft. All rights reserved. *@
-@using System.ComponentModel
-@using AGUIDojoClient.Components.Shared
-@using AGUIDojoClient.Components.Shared.Chat
+@using Microsoft.AspNetCore.Components.AI
 @using Microsoft.Agents.AI
 @using Microsoft.Extensions.DependencyInjection
-@inject DemoService DemoService
 @inject IServiceProvider ServiceProvider
-@implements IDisposable
 
-<div class="agentic-chat-demo">
-    <ChatHeader OnNewChat="@ResetConversationAsync" />
-    <ChatMessageList Messages="@messages" InProgressMessage="@currentResponseMessage">
-        <NoMessagesContent>
-            <div>Ask the assistant a question to start a conversation.</div>
-        </NoMessagesContent>
-    </ChatMessageList>
-    <div class="chat-container">
-        <ChatSuggestions OnSelected="@AddUserMessageAsync" @ref="@chatSuggestions" />
-        <ChatInput OnSend="@AddUserMessageAsync" @ref="@chatInput" />
+<PageTitle>Agentic Chat</PageTitle>
+
+<div class="chat-layout">
+    <div class="chat-header">
+        <div class="chat-title">AGUI WebChat</div>
+        <button class="new-chat-button" @onclick="ResetConversationAsync">
+            <span class="button-icon">+</span> New chat
+        </button>
     </div>
+
+    <AgentBoundary Agent="@agent">
+        <div class="chat-content">
+            <Messages />
+        </div>
+        
+        <div class="chat-input-container">
+            <AgentInput Placeholder="Type your message..." />
+        </div>
+    </AgentBoundary>
 </div>
 
 @code {
-    private const string SystemPrompt = @"
-        You are a helpful assistant.
-        ";
-
     private AIAgent? agent;
-    private AgentThread? thread;
-    private readonly List<ChatMessage> messages = new();
-    private CancellationTokenSource? currentResponseCancellation;
-    private ChatMessage? currentResponseMessage;
-    private ChatInput? chatInput;
-    private ChatSuggestions? chatSuggestions;
 
-    /// <summary>
-    /// Gets or sets the scenario ID for this demo.
-    /// </summary>
     [Parameter]
     public string ScenarioId { get; set; } = "agentic_chat";
 
     protected override void OnInitialized()
     {
         agent = ServiceProvider.GetRequiredKeyedService<AIAgent>("agentic-chat");
-        thread = agent?.GetNewThread();
-        messages.Add(new(ChatRole.System, SystemPrompt));
     }
 
-    private async Task AddUserMessageAsync(ChatMessage userMessage)
+    private void ResetConversationAsync()
     {
-        if (agent is null || thread is null)
-        {
-            return;
-        }
-
-        CancelAnyCurrentResponse();
-
-        // Add the user message to the conversation
-        messages.Add(userMessage);
-        chatSuggestions?.Clear();
-        await chatInput!.FocusAsync();
-
-        // Stream and display a new response from the AIAgent
-        var responseText = new TextContent("");
-        currentResponseMessage = new ChatMessage(ChatRole.Assistant, [responseText]);
+        // Reset would need to be implemented in AgentBoundary
         StateHasChanged();
-        currentResponseCancellation = new();
-        await foreach (AgentRunResponseUpdate update in agent.RunStreamingAsync(messages, thread, cancellationToken: currentResponseCancellation.Token))
-        {
-            ChatResponseUpdate chatUpdate = update.AsChatResponseUpdate();
-            messages.AddMessages(chatUpdate, filter: c => c is not TextContent);
-            responseText.Text += chatUpdate.Text;
-            ChatMessageItem.NotifyChanged(currentResponseMessage);
-        }
-
-        // Store the final response in the conversation, and begin getting suggestions
-        messages.Add(currentResponseMessage!);
-        currentResponseMessage = null;
-        chatSuggestions?.Update(messages);
     }
-
-    private void CancelAnyCurrentResponse()
-    {
-        // If a response was cancelled while streaming, include it in the conversation so it's not lost
-        if (currentResponseMessage is not null)
-        {
-            messages.Add(currentResponseMessage);
-        }
-
-        currentResponseCancellation?.Cancel();
-        currentResponseMessage = null;
-    }
-
-    private async Task ResetConversationAsync()
-    {
-        CancelAnyCurrentResponse();
-        messages.Clear();
-        messages.Add(new(ChatRole.System, SystemPrompt));
-        thread = agent?.GetNewThread();
-        chatSuggestions?.Clear();
-        await chatInput!.FocusAsync();
-    }
-
-    public void Dispose()
-        => currentResponseCancellation?.Cancel();
 }
