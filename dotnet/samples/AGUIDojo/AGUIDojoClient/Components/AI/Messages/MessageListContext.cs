@@ -4,7 +4,7 @@ using Microsoft.Extensions.AI;
 
 namespace Microsoft.AspNetCore.Components.AI;
 
-internal sealed class MessageListContext
+internal sealed partial class MessageListContext
 {
     private bool _collectingTemplates;
 
@@ -17,6 +17,7 @@ internal sealed class MessageListContext
     public MessageListContext(IAgentBoundaryContext context)
     {
         this.AgentBoundaryContext = context;
+        Log.MessageListContextCreated(this.AgentBoundaryContext.Logger);
     }
 
     public IAgentBoundaryContext AgentBoundaryContext { get; }
@@ -31,6 +32,7 @@ internal sealed class MessageListContext
         this._templates.Clear();
         this._contentTemplates.Clear();
         this._templateCache.Clear();
+        Log.BeganCollectingTemplates(this.AgentBoundaryContext.Logger);
     }
 
     public void RegisterTemplate(MessageTemplateBase template)
@@ -38,6 +40,7 @@ internal sealed class MessageListContext
         if (this._collectingTemplates)
         {
             this._templates.Add(template);
+            Log.MessageTemplateRegistered(this.AgentBoundaryContext.Logger, this._templates.Count);
         }
     }
 
@@ -46,6 +49,7 @@ internal sealed class MessageListContext
         if (this._collectingTemplates)
         {
             this._contentTemplates.Add(template);
+            Log.ContentTemplateRegistered(this.AgentBoundaryContext.Logger, this._contentTemplates.Count);
         }
     }
 
@@ -73,6 +77,7 @@ internal sealed class MessageListContext
                 // if it doesn't define the rendering for a content type.
                 var renderer = chosen.ChildContent(messageContext);
                 this._templateCache[message] = renderer;
+                Log.TemplateResolved(this.AgentBoundaryContext.Logger, message.Role.Value);
                 return renderer;
             }
         }
@@ -92,5 +97,23 @@ internal sealed class MessageListContext
         }
 
         throw new InvalidOperationException($"No content template found for content of type {content.GetType().Name}.");
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "MessageListContext created")]
+        public static partial void MessageListContextCreated(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "MessageListContext began collecting templates")]
+        public static partial void BeganCollectingTemplates(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Message template registered, total: {TemplateCount}")]
+        public static partial void MessageTemplateRegistered(ILogger logger, int templateCount);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Content template registered, total: {TemplateCount}")]
+        public static partial void ContentTemplateRegistered(ILogger logger, int templateCount);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Template resolved for message with role: {Role}")]
+        public static partial void TemplateResolved(ILogger logger, string role);
     }
 }

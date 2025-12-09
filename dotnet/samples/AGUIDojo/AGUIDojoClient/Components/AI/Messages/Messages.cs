@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components.Rendering;
 
 namespace Microsoft.AspNetCore.Components.AI;
 
-public class Messages : IComponent
+public partial class Messages : IComponent
 {
     private RenderHandle _renderHandle;
     private RenderFragment? _renderContents;
@@ -53,14 +53,20 @@ public class Messages : IComponent
 
         if (this._messageListContext == null)
         {
+            Log.MessagesAttached(this._context.Logger);
             this._messageListContext = new MessageListContext(this.AgentContext);
+            Log.MessagesInitialized(this._context.Logger);
             this.Render();
         }
 
         return Task.CompletedTask;
     }
 
-    private void Render() => this._renderHandle.Render(this.RenderCore);
+    private void Render()
+    {
+        Log.MessagesRendering(this._context?.Logger!);
+        this._renderHandle.Render(this.RenderCore);
+    }
 
     private void RenderCore(RenderTreeBuilder builder)
     {
@@ -79,5 +85,17 @@ public class Messages : IComponent
         builder.AddContent(2, this.ContentTemplates);
         builder.OpenComponent<MessageList>(3);
         builder.CloseComponent();
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Messages component attached to render handle")]
+        public static partial void MessagesAttached(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Messages component initialized with MessageListContext")]
+        public static partial void MessagesInitialized(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Messages component rendering")]
+        public static partial void MessagesRendering(ILogger logger);
     }
 }

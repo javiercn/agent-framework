@@ -4,13 +4,15 @@ using Microsoft.Extensions.AI;
 
 namespace Microsoft.AspNetCore.Components.AI;
 
-public class AgentInput : IComponent
+public partial class AgentInput : IComponent
 {
     private RenderHandle _renderHandle;
     private AgentBoundaryContext<object?>? _context;
     private string? _inputText;
 
     [CascadingParameter] public AgentBoundaryContext<object?>? AgentContext { get; set; }
+
+    [Inject] private ILogger<AgentInput> Logger { get; set; } = default!;
 
     [Parameter] public string Placeholder { get; set; } = "Type a message...";
 
@@ -23,12 +25,14 @@ public class AgentInput : IComponent
     {
         parameters.SetParameterProperties(this);
         this._context = this.AgentContext;
+        Log.AgentInputAttached(this.Logger);
         this.Render();
         return Task.CompletedTask;
     }
 
     private void Render()
     {
+        Log.AgentInputRendering(this.Logger);
         this._renderHandle.Render(builder =>
         {
             builder.OpenElement(0, "div");
@@ -57,10 +61,27 @@ public class AgentInput : IComponent
         if (!string.IsNullOrWhiteSpace(this._inputText) && this._context != null)
         {
             var text = this._inputText;
+            Log.AgentInputSendingMessage(this.Logger, text.Length);
             this._inputText = ""; // Clear input immediately
             this.Render(); // Re-render to clear input
 
             await this._context.SendAsync(new ChatMessage(ChatRole.User, text));
+            Log.AgentInputMessageSent(this.Logger);
         }
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentInput attached to render handle")]
+        public static partial void AgentInputAttached(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentInput rendering")]
+        public static partial void AgentInputRendering(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentInput sending message: {MessageLength} characters")]
+        public static partial void AgentInputSendingMessage(ILogger logger, int messageLength);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentInput message sent successfully")]
+        public static partial void AgentInputMessageSent(ILogger logger);
     }
 }

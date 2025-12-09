@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Components.Rendering;
 namespace Microsoft.AspNetCore.Components.AI;
 
 [CascadingTypeParameter(nameof(TState))]
-public class AgentStateBoundary<TState> : IComponent, IDisposable
+public partial class AgentStateBoundary<TState> : IComponent, IDisposable
 {
     private RenderHandle _renderHandle;
     private RenderFragment? _renderWithState;
@@ -23,10 +23,13 @@ public class AgentStateBoundary<TState> : IComponent, IDisposable
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    [Inject] private ILogger<AgentStateBoundary<TState>> Logger { get; set; } = default!;
+
     public void Attach(RenderHandle renderHandle)
     {
         this._renderHandle = renderHandle;
         this._renderWithState = this.RenderWithState;
+        Log.AgentBoundaryAttached(this.Logger);
     }
 
     // Agent boundary renders once when it receives the initial set of parameters
@@ -57,10 +60,12 @@ public class AgentStateBoundary<TState> : IComponent, IDisposable
             this._currentThread = null;
         }
 
+        Log.AgentBoundaryParametersSet(this.Logger, refresh);
+
         this._currentAgent = this.Agent;
         this._currentThread = thread;
 
-        this._context ??= new AgentBoundaryContext<TState>(this._currentAgent, this._currentThread);
+        this._context ??= new AgentBoundaryContext<TState>(this._currentAgent, this._currentThread, this.Logger);
         this._context.CurrentState = this.State;
 
         if (refresh)
@@ -73,6 +78,7 @@ public class AgentStateBoundary<TState> : IComponent, IDisposable
 
     private void Render()
     {
+        Log.AgentBoundaryRendering(this.Logger);
         this._renderHandle.Render(builder =>
         {
             builder.OpenComponent<CascadingValue<AgentBoundaryContext<TState>>>(0);
@@ -104,10 +110,26 @@ public class AgentStateBoundary<TState> : IComponent, IDisposable
         {
             if (disposing)
             {
+                Log.AgentBoundaryDisposed(this.Logger);
                 this._context?.Dispose();
             }
             this._disposed = true;
         }
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentStateBoundary attached to render handle")]
+        public static partial void AgentBoundaryAttached(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentStateBoundary parameters set, refresh required: {RefreshRequired}")]
+        public static partial void AgentBoundaryParametersSet(ILogger logger, bool refreshRequired);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentStateBoundary rendering")]
+        public static partial void AgentBoundaryRendering(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentStateBoundary disposed")]
+        public static partial void AgentBoundaryDisposed(ILogger logger);
     }
 }
 

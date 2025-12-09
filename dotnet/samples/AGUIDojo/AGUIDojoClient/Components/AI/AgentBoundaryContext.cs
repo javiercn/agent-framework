@@ -5,11 +5,12 @@ using Microsoft.Extensions.AI;
 
 namespace Microsoft.AspNetCore.Components.AI;
 
-public class AgentBoundaryContext<TState> : IAgentBoundaryContext, IDisposable
+public sealed partial class AgentBoundaryContext<TState> : IAgentBoundaryContext, IDisposable
 {
     private readonly AIAgent _agent;
     private readonly AgentThread _thread;
     private readonly CancellationTokenSource _cancellationTokenSource;
+    private readonly ILogger _logger;
     private readonly List<ChatMessage> _messages = [];
     private readonly List<ChatMessage> _pendingMessages = [];
     private readonly List<Action> _messageChangeSubscribers = [];
@@ -27,30 +28,29 @@ public class AgentBoundaryContext<TState> : IAgentBoundaryContext, IDisposable
 
     public ChatResponseUpdate? CurrentUpdate { get; private set; }
 
-    public AgentBoundaryContext(AIAgent agent, AgentThread thread)
+    ILogger IAgentBoundaryContext.Logger => this._logger;
+
+    public AgentBoundaryContext(AIAgent agent, AgentThread thread, ILogger logger)
     {
         this._agent = agent;
         this._thread = thread;
         this._cancellationTokenSource = new CancellationTokenSource();
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            this._cancellationTokenSource.Cancel();
-            this._cancellationTokenSource.Dispose();
-        }
+        this._logger = logger;
+        Log.AgentBoundaryContextCreated(this._logger);
     }
 
     public void Dispose()
     {
-        this.Dispose(true);
+        Log.AgentBoundaryContextDisposed(this._logger);
+        this._cancellationTokenSource.Cancel();
+        this._cancellationTokenSource.Dispose();
         GC.SuppressFinalize(this);
     }
 
     public async Task SendAsync(params ChatMessage[] userMessages)
     {
+        Log.SendAsyncStarted(this._logger, userMessages.Length);
+
         // This starts a new turn. Once completed, we will add the new messages to the conversation.
         this._pendingMessages.Clear();
         this._pendingMessages.AddRange(userMessages);
@@ -68,15 +68,16 @@ public class AgentBoundaryContext<TState> : IAgentBoundaryContext, IDisposable
             var chatUpdate = update.AsChatResponseUpdate();
 
             this.CurrentUpdate = chatUpdate;
+            Log.ChatResponseUpdateReceived(this._logger);
 
             // Notify subscribers of the new update, this always happens before a new message is created/updated.
             this.TriggerChatResponseUpdate();
 
             // This creates or adds a new message to the pending messages as needed.
-            var messageCountBefore = this._pendingMessages.Count;
             var isNewMessage = MessageHelpers.ProcessUpdate(chatUpdate, this._pendingMessages);
             if (isNewMessage)
             {
+                Log.NewMessageCreated(this._logger, this._pendingMessages.Count);
                 this.CurrentMessage = this._pendingMessages[this._pendingMessages.Count - 1];
 
                 // Finalize the previous message's content if we have 2 or more messages now.
@@ -107,10 +108,13 @@ public class AgentBoundaryContext<TState> : IAgentBoundaryContext, IDisposable
         // Notify subscribers
         this.TriggerChatResponseUpdate();
         this.TriggerMessageChanges();
+
+        Log.SendAsyncCompleted(this._logger, this._messages.Count);
     }
 
     private void TriggerChatResponseUpdate()
     {
+        Log.ResponseUpdateSubscribersNotified(this._logger, this._responseUpdateSubscribers.Count);
         foreach (var subscriber in this._responseUpdateSubscribers)
         {
             subscriber();
@@ -119,6 +123,7 @@ public class AgentBoundaryContext<TState> : IAgentBoundaryContext, IDisposable
 
     private void TriggerMessageChanges()
     {
+        Log.MessageChangeSubscribersNotified(this._logger, this._messageChangeSubscribers.Count);
         foreach (var subscriber in this._messageChangeSubscribers)
         {
             subscriber();
@@ -135,9 +140,31 @@ public class AgentBoundaryContext<TState> : IAgentBoundaryContext, IDisposable
         return new ResponseUpdateSubscription(this._responseUpdateSubscribers, onChatResponse);
     }
 
-    ~AgentBoundaryContext()
+    private static partial class Log
     {
-        this.Dispose(false);
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentBoundaryContext created for thread")]
+        public static partial void AgentBoundaryContextCreated(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "AgentBoundaryContext disposed")]
+        public static partial void AgentBoundaryContextDisposed(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "SendAsync started with {MessageCount} user message(s)")]
+        public static partial void SendAsyncStarted(ILogger logger, int messageCount);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "SendAsync completed, total messages: {TotalMessages}")]
+        public static partial void SendAsyncCompleted(ILogger logger, int totalMessages);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "New message created during streaming, pending count: {PendingCount}")]
+        public static partial void NewMessageCreated(ILogger logger, int pendingCount);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Chat response update received")]
+        public static partial void ChatResponseUpdateReceived(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Message change subscribers notified, subscriber count: {SubscriberCount}")]
+        public static partial void MessageChangeSubscribersNotified(ILogger logger, int subscriberCount);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Response update subscribers notified, subscriber count: {SubscriberCount}")]
+        public static partial void ResponseUpdateSubscribersNotified(ILogger logger, int subscriberCount);
     }
 }
 
@@ -156,6 +183,8 @@ public interface IAgentBoundaryContext
     ChatMessage? CurrentMessage { get; }
 
     ChatResponseUpdate? CurrentUpdate { get; }
+
+    ILogger Logger { get; }
 
     // Triggered any time there is a change on a message.
     MessageSubscription SubscribeToMessageChanges(Action onNewMessage);
