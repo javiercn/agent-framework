@@ -108,23 +108,55 @@
     font-weight: 500;
 }
 
-/* Loading state */
+/* Loading/Skeleton state */
 .weather-loading {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 16px;
-    padding: 24px;
-    color: white;
-    max-width: 320px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
 }
 
-.weather-loading .spinner {
-    animation: spin 1s linear infinite;
+.skeleton-text {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.2) 25%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0.2) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite;
+    border-radius: 4px;
+    display: inline-block;
 }
 
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+.skeleton-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.2) 25%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0.2) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.skeleton-temp {
+    width: 80px;
+    height: 3rem;
+}
+
+.skeleton-temp-f {
+    width: 60px;
+    height: 1rem;
+}
+
+.skeleton-conditions {
+    width: 100px;
+    height: 1.1rem;
+    margin-top: 8px;
+}
+
+.skeleton-detail {
+    width: 40px;
+    height: 1.1rem;
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
 }

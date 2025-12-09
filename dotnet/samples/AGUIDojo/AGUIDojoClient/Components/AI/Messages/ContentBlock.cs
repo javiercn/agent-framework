@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components.Rendering;
 namespace Microsoft.AspNetCore.Components.AI;
 
 #pragma warning disable CA1812 // Internal class is apparently never instantiated
-internal sealed class MessageRenderer : IComponent
+internal sealed class ContentBlock : IComponent
 #pragma warning restore CA1812 // Internal class is apparently never instantiated
 {
     private RenderHandle _renderHandle;

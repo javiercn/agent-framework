@@ -14,6 +14,9 @@ internal sealed partial class MessageListContext
     // We compute a render fragment to render each message only once and cache it here.
     private readonly Dictionary<ChatMessage, RenderFragment> _templateCache = [];
 
+    // Track function invocations by CallId to associate calls with results.
+    private readonly Dictionary<string, InvocationContext> _invocationMap = [];
+
     public MessageListContext(IAgentBoundaryContext context)
     {
         this.AgentBoundaryContext = context;
@@ -51,6 +54,46 @@ internal sealed partial class MessageListContext
             this._contentTemplates.Add(template);
             Log.ContentTemplateRegistered(this.AgentBoundaryContext.Logger, this._contentTemplates.Count);
         }
+    }
+
+    /// <summary>
+    /// Gets or creates an invocation context for the given function call.
+    /// </summary>
+    /// <param name="call">The function call content.</param>
+    /// <returns>The invocation context for this call.</returns>
+    public InvocationContext GetOrCreateInvocation(FunctionCallContent call)
+    {
+        if (!this._invocationMap.TryGetValue(call.CallId, out var context))
+        {
+            context = new InvocationContext(call);
+            this._invocationMap[call.CallId] = context;
+            Log.InvocationRegistered(this.AgentBoundaryContext.Logger, call.CallId, call.Name);
+        }
+
+        return context;
+    }
+
+    /// <summary>
+    /// Associates a function result with its corresponding call.
+    /// </summary>
+    /// <param name="result">The function result content.</param>
+    public void AssociateResult(FunctionResultContent result)
+    {
+        if (this._invocationMap.TryGetValue(result.CallId, out var context))
+        {
+            context.SetResult(result);
+            Log.ResultAssociated(this.AgentBoundaryContext.Logger, result.CallId);
+        }
+    }
+
+    /// <summary>
+    /// Gets an invocation context by call ID.
+    /// </summary>
+    /// <param name="callId">The call ID.</param>
+    /// <returns>The invocation context, or null if not found.</returns>
+    public InvocationContext? GetInvocation(string callId)
+    {
+        return this._invocationMap.TryGetValue(callId, out var context) ? context : null;
     }
 
     internal RenderFragment GetTemplate(ChatMessage message)
@@ -115,5 +158,11 @@ internal sealed partial class MessageListContext
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Template resolved for message with role: {Role}")]
         public static partial void TemplateResolved(ILogger logger, string role);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Invocation registered for CallId: {CallId}, Function: {FunctionName}")]
+        public static partial void InvocationRegistered(ILogger logger, string callId, string functionName);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Result associated with CallId: {CallId}")]
+        public static partial void ResultAssociated(ILogger logger, string callId);
     }
 }

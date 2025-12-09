@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 
 using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.Extensions.AI;
 
 namespace Microsoft.AspNetCore.Components.AI;
 
@@ -31,8 +32,8 @@ internal sealed partial class MessageList : IComponent, IDisposable
         }
 
         // Subscribe to message updates and response updates for streaming
-        this._messageSubscription = this.MessageListContext.AgentBoundaryContext.SubscribeToMessageChanges(this.RenderOnUpdate);
-        this._responseSubscription = this.MessageListContext.AgentBoundaryContext.SubscribeToResponseUpdates(this.RenderOnUpdate);
+        this._messageSubscription = this.MessageListContext.AgentBoundaryContext.SubscribeToMessageChanges(this.ProcessUpdate);
+        this._responseSubscription = this.MessageListContext.AgentBoundaryContext.SubscribeToResponseUpdates(this.ProcessUpdate);
         Log.MessageListAttached(this.MessageListContext.AgentBoundaryContext.Logger);
         Log.MessageListSubscribed(this.MessageListContext.AgentBoundaryContext.Logger);
 
@@ -42,7 +43,37 @@ internal sealed partial class MessageList : IComponent, IDisposable
         return Task.CompletedTask;
     }
 
-    private void RenderOnUpdate() => this._renderHandle.Render(this.Render);
+    private void ProcessUpdate()
+    {
+        // Scan all messages for function calls and results to track invocations.
+        // This allows us to associate results with their calls when results arrive.
+        foreach (var message in this.MessageListContext.AgentBoundaryContext.CompletedMessages)
+        {
+            this.ProcessMessageContents(message);
+        }
+
+        foreach (var message in this.MessageListContext.AgentBoundaryContext.PendingMessages)
+        {
+            this.ProcessMessageContents(message);
+        }
+
+        this._renderHandle.Render(this.Render);
+    }
+
+    private void ProcessMessageContents(ChatMessage message)
+    {
+        foreach (var content in message.Contents)
+        {
+            if (content is FunctionCallContent call)
+            {
+                this.MessageListContext.GetOrCreateInvocation(call);
+            }
+            else if (content is FunctionResultContent result)
+            {
+                this.MessageListContext.AssociateResult(result);
+            }
+        }
+    }
 
     public void Render(RenderTreeBuilder builder)
     {
@@ -55,7 +86,7 @@ internal sealed partial class MessageList : IComponent, IDisposable
         {
             // Calling GetTemplate will stop template collection on the first message if it
             // was still ongoing.
-            builder.OpenComponent<MessageRenderer>(0);
+            builder.OpenComponent<ContentBlock>(0);
             builder.SetKey(message.MessageId);
             builder.AddComponentParameter(1, "ChildContent", this.MessageListContext.GetTemplate(message));
             builder.CloseComponent();
@@ -63,7 +94,7 @@ internal sealed partial class MessageList : IComponent, IDisposable
 
         foreach (var message in this.MessageListContext.AgentBoundaryContext.PendingMessages)
         {
-            builder.OpenComponent<MessageRenderer>(1);
+            builder.OpenComponent<ContentBlock>(1);
             builder.SetKey(message.MessageId);
             builder.AddComponentParameter(1, "ChildContent", this.MessageListContext.GetTemplate(message));
             builder.CloseComponent();
