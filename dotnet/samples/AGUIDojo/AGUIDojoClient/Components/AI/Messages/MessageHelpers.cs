@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.AspNetCore.Components.AI;
 
@@ -251,7 +252,7 @@ internal static class MessageHelpers
         }
     }
 
-    internal static bool ProcessUpdate(ChatResponseUpdate update, List<ChatMessage> messages)
+    internal static bool ProcessUpdate(ChatResponseUpdate update, List<ChatMessage> messages, ILogger? logger = null)
     {
         // If there is no message created yet, or if the last update we saw had a different
         // identifying parts, create a new message.
@@ -263,6 +264,10 @@ internal static class MessageHelpers
                 NotEmptyOrEqual(update.AuthorName, lastMessage.AuthorName) ||
                 NotEmptyOrEqual(update.MessageId, lastMessage.MessageId) ||
                 NotNullOrEqual(update.Role, lastMessage.Role);
+
+            logger?.LogDebug(
+                "ProcessUpdate checking: update.MessageId={UpdateMessageId}, lastMessage.MessageId={LastMessageId}, isNewMessage={IsNew}",
+                update.MessageId, lastMessage.MessageId, isNewMessage);
         }
 
         // Get the message to target, either a new one or the last ones.
@@ -271,6 +276,7 @@ internal static class MessageHelpers
         {
             message = new(ChatRole.Assistant, []);
             messages.Add(message);
+            logger?.LogDebug("ProcessUpdate: Created new message, total count={Count}", messages.Count);
         }
         else
         {
@@ -301,12 +307,15 @@ internal static class MessageHelpers
         {
             // Note that this must come after the message checks earlier, as they depend
             // on this value for change detection.
+            var oldId = message.MessageId;
             message.MessageId = update.MessageId;
+            logger?.LogDebug("ProcessUpdate: Set MessageId from {OldId} to {NewId}", oldId, update.MessageId);
         }
 
         foreach (var content in update.Contents)
         {
             message.Contents.Add(content);
+            logger?.LogDebug("ProcessUpdate: Added content type {ContentType}", content.GetType().Name);
         }
 
         return isNewMessage;

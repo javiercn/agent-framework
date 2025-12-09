@@ -15,6 +15,8 @@ public sealed partial class AgentBoundaryContext<TState> : IAgentBoundaryContext
     private readonly List<ChatMessage> _pendingMessages = [];
     private readonly List<Action> _messageChangeSubscribers = [];
     private readonly List<Action> _responseUpdateSubscribers = [];
+    private readonly List<AITool> _tools = [];
+    private readonly Dictionary<string, TaskCompletionSource<object>> _pendingResponses = [];
 
     public CancellationToken CancellationToken => this._cancellationTokenSource.Token;
 
@@ -39,6 +41,63 @@ public sealed partial class AgentBoundaryContext<TState> : IAgentBoundaryContext
         Log.AgentBoundaryContextCreated(this._logger);
     }
 
+    /// <summary>
+    /// Registers a client-side tool that will be passed to the agent during invocation.
+    /// These tools are sent to the server via ChatClientAgentRunOptions.ChatOptions.Tools.
+    /// </summary>
+    public void RegisterTool(AITool tool)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        this._tools.Add(tool);
+        Log.ToolRegistered(this._logger, tool.Name);
+    }
+
+    /// <summary>
+    /// Registers multiple client-side tools that will be passed to the agent during invocation.
+    /// </summary>
+    public void RegisterTools(params AITool[] tools)
+    {
+        foreach (var tool in tools)
+        {
+            this.RegisterTool(tool);
+        }
+    }
+
+    /// <summary>
+    /// Creates a pending response for the given key and returns a task that completes when ProvideResponse is called.
+    /// Used by frontend tools to wait for user input from UI components.
+    /// </summary>
+    /// <param name="key">A unique key to identify this pending response (e.g., function call ID).</param>
+    /// <returns>A task that completes with the response object when ProvideResponse is called.</returns>
+    public Task<object> WaitForResponse(string key)
+    {
+        var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+        this._pendingResponses[key] = tcs;
+        Log.WaitForResponseStarted(this._logger, key);
+        return tcs.Task;
+    }
+
+    /// <summary>
+    /// Provides a response for a pending request, completing the task returned by WaitForResponse.
+    /// Called by UI components when user interaction is complete.
+    /// </summary>
+    /// <param name="key">The key used when calling WaitForResponse.</param>
+    /// <param name="response">The response object to return.</param>
+    /// <returns>True if the response was provided successfully, false if no pending request was found.</returns>
+    public bool ProvideResponse(string key, object response)
+    {
+        if (this._pendingResponses.TryGetValue(key, out var tcs))
+        {
+            this._pendingResponses.Remove(key);
+            tcs.TrySetResult(response);
+            Log.ResponseProvided(this._logger, key);
+            return true;
+        }
+
+        Log.ResponseNotFound(this._logger, key);
+        return false;
+    }
+
     public void Dispose()
     {
         Log.AgentBoundaryContextDisposed(this._logger);
@@ -58,11 +117,22 @@ public sealed partial class AgentBoundaryContext<TState> : IAgentBoundaryContext
         // User messages added, notify subscribers.
         this.TriggerMessageChanges();
 
+        // Build run options with registered tools if any
+        AgentRunOptions? options = null;
+        if (this._tools.Count > 0)
+        {
+            options = new ChatClientAgentRunOptions(new ChatOptions
+            {
+                Tools = [.. this._tools]
+            });
+            Log.RunningWithTools(this._logger, this._tools.Count);
+        }
+
         // Start a turn. Collect all updates as we stream them.
         await foreach (var update in this._agent.RunStreamingAsync(
             userMessages,
             this._thread,
-            options: null,
+            options,
             this._cancellationTokenSource.Token))
         {
             var chatUpdate = update.AsChatResponseUpdate();
@@ -74,7 +144,7 @@ public sealed partial class AgentBoundaryContext<TState> : IAgentBoundaryContext
             this.TriggerChatResponseUpdate();
 
             // This creates or adds a new message to the pending messages as needed.
-            var isNewMessage = MessageHelpers.ProcessUpdate(chatUpdate, this._pendingMessages);
+            var isNewMessage = MessageHelpers.ProcessUpdate(chatUpdate, this._pendingMessages, this._logger);
             if (isNewMessage)
             {
                 Log.NewMessageCreated(this._logger, this._pendingMessages.Count);
@@ -115,18 +185,20 @@ public sealed partial class AgentBoundaryContext<TState> : IAgentBoundaryContext
     private void TriggerChatResponseUpdate()
     {
         Log.ResponseUpdateSubscribersNotified(this._logger, this._responseUpdateSubscribers.Count);
-        foreach (var subscriber in this._responseUpdateSubscribers)
+        // Iterate backwards to avoid issues if subscribers are removed during iteration
+        for (var i = this._responseUpdateSubscribers.Count - 1; i >= 0; i--)
         {
-            subscriber();
+            this._responseUpdateSubscribers[i]();
         }
     }
 
     private void TriggerMessageChanges()
     {
         Log.MessageChangeSubscribersNotified(this._logger, this._messageChangeSubscribers.Count);
-        foreach (var subscriber in this._messageChangeSubscribers)
+        // Iterate backwards to avoid issues if subscribers are removed during iteration
+        for (var i = this._messageChangeSubscribers.Count - 1; i >= 0; i--)
         {
-            subscriber();
+            this._messageChangeSubscribers[i]();
         }
     }
 
@@ -165,6 +237,21 @@ public sealed partial class AgentBoundaryContext<TState> : IAgentBoundaryContext
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Response update subscribers notified, subscriber count: {SubscriberCount}")]
         public static partial void ResponseUpdateSubscribersNotified(ILogger logger, int subscriberCount);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Tool registered: {ToolName}")]
+        public static partial void ToolRegistered(ILogger logger, string toolName);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Running with {ToolCount} registered tool(s)")]
+        public static partial void RunningWithTools(ILogger logger, int toolCount);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "WaitForResponse started for key: {Key}")]
+        public static partial void WaitForResponseStarted(ILogger logger, string key);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Response provided for key: {Key}")]
+        public static partial void ResponseProvided(ILogger logger, string key);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "No pending response found for key: {Key}")]
+        public static partial void ResponseNotFound(ILogger logger, string key);
     }
 }
 
@@ -192,6 +279,33 @@ public interface IAgentBoundaryContext
     ResponseUpdateSubscription SubscribeToResponseUpdates(Action onChatResponse);
 
     CancellationToken CancellationToken { get; }
+
+    /// <summary>
+    /// Registers a client-side tool that will be passed to the agent during invocation.
+    /// </summary>
+    void RegisterTool(AITool tool);
+
+    /// <summary>
+    /// Registers multiple client-side tools that will be passed to the agent during invocation.
+    /// </summary>
+    void RegisterTools(params AITool[] tools);
+
+    /// <summary>
+    /// Creates a pending response for the given key and returns a task that completes when ProvideResponse is called.
+    /// Used by frontend tools to wait for user input from UI components.
+    /// </summary>
+    /// <param name="key">A unique key to identify this pending response (e.g., function call ID).</param>
+    /// <returns>A task that completes with the response object when ProvideResponse is called.</returns>
+    Task<object> WaitForResponse(string key);
+
+    /// <summary>
+    /// Provides a response for a pending request, completing the task returned by WaitForResponse.
+    /// Called by UI components when user interaction is complete.
+    /// </summary>
+    /// <param name="key">The key used when calling WaitForResponse.</param>
+    /// <param name="response">The response object to return.</param>
+    /// <returns>True if the response was provided successfully, false if no pending request was found.</returns>
+    bool ProvideResponse(string key, object response);
 }
 
 public readonly struct MessageSubscription : IDisposable, IEquatable<MessageSubscription>

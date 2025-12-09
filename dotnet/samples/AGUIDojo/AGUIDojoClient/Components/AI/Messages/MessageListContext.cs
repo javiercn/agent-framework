@@ -4,7 +4,7 @@ using Microsoft.Extensions.AI;
 
 namespace Microsoft.AspNetCore.Components.AI;
 
-internal sealed partial class MessageListContext
+public sealed partial class MessageListContext
 {
     private bool _collectingTemplates;
 

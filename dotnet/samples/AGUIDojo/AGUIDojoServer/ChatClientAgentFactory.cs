@@ -134,7 +134,7 @@ internal static class ChatClientAgentFactory
             Description = "An agent that demonstrates predictive state updates using Azure OpenAI",
             Instructions = """
                 You are a document editor assistant. When asked to write or edit content:
-                
+
                 IMPORTANT:
                 - Use the `write_document` tool with the full document text in Markdown format
                 - Format the document extensively so it's easy to read
@@ -144,7 +144,7 @@ internal static class ChatClientAgentFactory
                 - When making edits to the document, try to make them minimal - do not change every word
                 - Keep stories SHORT!
                 - After you are done writing the document you MUST call a confirm_changes tool after you call write_document
-                
+
                 After the user confirms the changes, provide a brief summary of what you wrote.
                 """,
             ChatOptions = new ChatOptions

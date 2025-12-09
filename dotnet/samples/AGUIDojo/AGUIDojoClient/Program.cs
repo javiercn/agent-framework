@@ -68,6 +68,20 @@ builder.Services.AddKeyedSingleton<AIAgent>("backend-tool-rendering", (sp, key) 
         description: "A helpful assistant that can look up weather information");
 });
 
+// Register a keyed AIAgent for human-in-the-loop demo
+builder.Services.AddKeyedSingleton<AIAgent>("human-in-the-loop", (sp, key) =>
+{
+    HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
+    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "human_in_the_loop");
+
+    // Create the base agent and wrap it with a delegating agent that adds instructions
+    AIAgent baseAgent = aguiChatClient.CreateAIAgent(
+        name: "HumanInTheLoopAssistant",
+        description: "A helpful assistant that creates plans and asks for user confirmation");
+
+    return new AGUIDojoClient.Components.Demos.HumanInTheLoop.HumanInTheLoopAgent(baseAgent);
+});
+
 WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.

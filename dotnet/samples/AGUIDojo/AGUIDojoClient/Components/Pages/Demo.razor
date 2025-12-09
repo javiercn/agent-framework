@@ -3,6 +3,7 @@
 @using AGUIDojoClient.Components.Shared
 @using AGUIDojoClient.Components.Demos.AgenticChat
 @using AGUIDojoClient.Components.Demos.BackendToolRendering
+@using AGUIDojoClient.Components.Demos.HumanInTheLoop
 @rendermode InteractiveServer
 @inject DemoService DemoService
 @inject NavigationManager Nav
@@ -105,6 +106,12 @@
             case "backend_tool_rendering":
                 builder.OpenComponent<BackendToolRenderingDemo>(0);
                 builder.AddAttribute(1, nameof(BackendToolRenderingDemo.ScenarioId), scenario.Id);
+                builder.CloseComponent();
+                break;
+
+            case "human_in_the_loop":
+                builder.OpenComponent<HumanInTheLoopDemo>(0);
+                builder.AddAttribute(1, nameof(HumanInTheLoopDemo.ScenarioId), scenario.Id);
                 builder.CloseComponent();
                 break;
 

@@ -8,7 +8,7 @@ public abstract class ContentTemplateBase : IComponent
 
     public abstract Task SetParametersAsync(ParameterView parameters);
 
-    public bool When(ContentContext context) => true;
+    public virtual bool When(ContentContext context) => true;
 
     [Parameter] public RenderFragment<ContentContext> ChildContent { get; set; } = (content) => builder => { };
 }

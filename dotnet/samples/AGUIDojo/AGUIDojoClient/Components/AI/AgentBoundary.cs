@@ -23,6 +23,12 @@ public partial class AgentStateBoundary<TState> : IComponent, IDisposable
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    /// <summary>
+    /// Callback invoked when the boundary context is created or recreated.
+    /// Use this to register tools or perform other initialization.
+    /// </summary>
+    [Parameter] public EventCallback<IAgentBoundaryContext> OnContextCreated { get; set; }
+
     [Inject] private ILogger<AgentStateBoundary<TState>> Logger { get; set; } = default!;
 
     public void Attach(RenderHandle renderHandle)
@@ -80,8 +86,15 @@ public partial class AgentStateBoundary<TState> : IComponent, IDisposable
         this._currentThread = thread;
 
         // Agent is validated non-null above, thread is either from Thread parameter or GetNewThread()
+        bool isNewContext = this._context == null;
         this._context ??= new AgentBoundaryContext<TState>(this.Agent!, thread!, this.Logger);
         this._context.CurrentState = this.State;
+
+        // Invoke the context created callback if we created a new context
+        if (isNewContext && this.OnContextCreated.HasDelegate)
+        {
+            _ = this.OnContextCreated.InvokeAsync(this._context);
+        }
 
         if (refresh)
         {
