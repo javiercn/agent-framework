@@ -104,6 +104,17 @@ builder.Services.AddKeyedSingleton<AIAgent>("agentic-generative-ui", (sp, key) =
         description: "A helpful assistant that executes long-running tasks and shows progress");
 });
 
+// Register a keyed AIAgent for shared state demo (recipe copilot)
+builder.Services.AddKeyedSingleton<AIAgent>("shared-state", (sp, key) =>
+{
+    HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
+    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "shared_state");
+
+    return aguiChatClient.CreateAIAgent(
+        name: "SharedStateAssistant",
+        description: "A recipe copilot that reads and updates collaboratively");
+});
+
 WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.

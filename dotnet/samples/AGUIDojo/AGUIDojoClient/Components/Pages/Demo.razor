@@ -5,6 +5,7 @@
 @using AGUIDojoClient.Components.Demos.AgenticGenerativeUI
 @using AGUIDojoClient.Components.Demos.BackendToolRendering
 @using AGUIDojoClient.Components.Demos.HumanInTheLoop
+@using AGUIDojoClient.Components.Demos.SharedState
 @using AGUIDojoClient.Components.Demos.ToolBasedGenerativeUI
 @rendermode InteractiveServer
 @inject DemoService DemoService
@@ -126,6 +127,12 @@
             case "agentic_generative_ui":
                 builder.OpenComponent<AgenticGenerativeUIDemo>(0);
                 builder.AddAttribute(1, nameof(AgenticGenerativeUIDemo.ScenarioId), scenario.Id);
+                builder.CloseComponent();
+                break;
+
+            case "shared_state":
+                builder.OpenComponent<SharedStateDemo>(0);
+                builder.AddAttribute(1, nameof(SharedStateDemo.ScenarioId), scenario.Id);
                 builder.CloseComponent();
                 break;
 
