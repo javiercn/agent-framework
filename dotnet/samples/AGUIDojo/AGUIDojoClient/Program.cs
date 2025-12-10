@@ -115,6 +115,17 @@ builder.Services.AddKeyedSingleton<AIAgent>("shared-state", (sp, key) =>
         description: "A recipe copilot that reads and updates collaboratively");
 });
 
+// Register a keyed AIAgent for predictive state updates demo (document editor)
+builder.Services.AddKeyedSingleton<AIAgent>("predictive-state-updates", (sp, key) =>
+{
+    HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
+    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "predictive_state_updates");
+
+    return aguiChatClient.CreateAIAgent(
+        name: "PredictiveStateUpdatesAssistant",
+        description: "An AI document editor that streams content updates");
+});
+
 WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.

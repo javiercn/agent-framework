@@ -6,6 +6,7 @@
 @using AGUIDojoClient.Components.Demos.BackendToolRendering
 @using AGUIDojoClient.Components.Demos.HumanInTheLoop
 @using AGUIDojoClient.Components.Demos.SharedState
+@using AGUIDojoClient.Components.Demos.PredictiveStateUpdates
 @using AGUIDojoClient.Components.Demos.ToolBasedGenerativeUI
 @rendermode InteractiveServer
 @inject DemoService DemoService
@@ -133,6 +134,12 @@
             case "shared_state":
                 builder.OpenComponent<SharedStateDemo>(0);
                 builder.AddAttribute(1, nameof(SharedStateDemo.ScenarioId), scenario.Id);
+                builder.CloseComponent();
+                break;
+
+            case "predictive_state_updates":
+                builder.OpenComponent<PredictiveStateUpdatesDemo>(0);
+                builder.AddAttribute(1, nameof(PredictiveStateUpdatesDemo.ScenarioId), scenario.Id);
                 builder.CloseComponent();
                 break;
 
