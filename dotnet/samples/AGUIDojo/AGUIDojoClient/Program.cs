@@ -93,6 +93,17 @@ builder.Services.AddKeyedSingleton<AIAgent>("tool-based-generative-ui", (sp, key
         description: "A helpful assistant that generates haikus with Japanese text and images");
 });
 
+// Register a keyed AIAgent for agentic generative UI demo (long-running task execution)
+builder.Services.AddKeyedSingleton<AIAgent>("agentic-generative-ui", (sp, key) =>
+{
+    HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("aguiserver");
+    AGUIChatClient aguiChatClient = new AGUIChatClient(httpClient, "agentic_generative_ui");
+
+    return aguiChatClient.CreateAIAgent(
+        name: "AgenticGenerativeUIAssistant",
+        description: "A helpful assistant that executes long-running tasks and shows progress");
+});
+
 WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.

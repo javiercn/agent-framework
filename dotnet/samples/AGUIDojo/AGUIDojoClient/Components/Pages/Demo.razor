@@ -2,6 +2,7 @@
 @page "/microsoft-agent-framework/feature/{scenarioId}"
 @using AGUIDojoClient.Components.Shared
 @using AGUIDojoClient.Components.Demos.AgenticChat
+@using AGUIDojoClient.Components.Demos.AgenticGenerativeUI
 @using AGUIDojoClient.Components.Demos.BackendToolRendering
 @using AGUIDojoClient.Components.Demos.HumanInTheLoop
 @using AGUIDojoClient.Components.Demos.ToolBasedGenerativeUI
@@ -119,6 +120,12 @@
             case "tool_based_generative_ui":
                 builder.OpenComponent<ToolBasedGenerativeUIDemo>(0);
                 builder.AddAttribute(1, nameof(ToolBasedGenerativeUIDemo.ScenarioId), scenario.Id);
+                builder.CloseComponent();
+                break;
+
+            case "agentic_generative_ui":
+                builder.OpenComponent<AgenticGenerativeUIDemo>(0);
+                builder.AddAttribute(1, nameof(AgenticGenerativeUIDemo.ScenarioId), scenario.Id);
                 builder.CloseComponent();
                 break;
 
