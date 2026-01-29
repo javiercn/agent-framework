@@ -9,13 +9,10 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using AGUI.Protocol;
 using Microsoft.Extensions.AI;
 
-#if ASPNETCORE
-namespace Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Shared;
-#else
-namespace Microsoft.Agents.AI.AGUI.Shared;
-#endif
+namespace Microsoft.Agents.AI.AGUI;
 
 internal static class ChatResponseUpdateAGUIExtensions
 {

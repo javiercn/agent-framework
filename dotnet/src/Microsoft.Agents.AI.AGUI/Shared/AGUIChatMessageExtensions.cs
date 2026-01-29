@@ -3,13 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using AGUI.Protocol;
 using Microsoft.Extensions.AI;
 
-#if ASPNETCORE
-namespace Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Shared;
-#else
-namespace Microsoft.Agents.AI.AGUI.Shared;
-#endif
+namespace Microsoft.Agents.AI.AGUI;
 
 internal static class AGUIChatMessageExtensions
 {
@@ -55,7 +52,7 @@ internal static class AGUIChatMessageExtensions
                     break;
                 }
 
-                case AGUIAssistantMessage assistantMessage when assistantMessage.ToolCalls is { Length: > 0 }:
+                case AGUIAssistantMessage assistantMessage when assistantMessage.ToolCalls is { Count: > 0 }:
                 {
                     var contents = new List<AIContent>();
 

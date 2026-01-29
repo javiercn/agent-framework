@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using Microsoft.Agents.AI.AGUI.Shared;
+using AGUI.Protocol;
 
 namespace Microsoft.Agents.AI.AGUI.UnitTests;
 
@@ -137,7 +137,7 @@ public sealed class AGUIJsonSerializerContextTests
         Assert.Equal(original.ThreadId, deserialized.ThreadId);
         Assert.Equal(original.RunId, deserialized.RunId);
         Assert.Equal(2, deserialized.Messages.Count());
-        Assert.Equal(2, deserialized.Context.Length);
+        Assert.Equal(2, deserialized.Context.Count);
     }
 
     [Fact]

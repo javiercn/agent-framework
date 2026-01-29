@@ -4,7 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Shared;
+using AGUI.Protocol;
+using Microsoft.Agents.AI.AGUI;
 using Microsoft.Extensions.AI;
 
 namespace Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.UnitTests;
