@@ -44,7 +44,10 @@ internal static class ChatResponseUpdateAGUIExtensions
                     yield return ValidateAndEmitRunFinished(conversationId, responseId, runFinished);
                     break;
                 case RunErrorEvent runError:
-                    yield return new ChatResponseUpdate(ChatRole.Assistant, [(new ErrorContent(runError.Message) { ErrorCode = runError.Code })]);
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [(new ErrorContent(runError.Message) { ErrorCode = runError.Code })])
+                    {
+                        RawRepresentation = runError
+                    };
                     break;
 
                 // Text events
@@ -85,6 +88,17 @@ internal static class ChatResponseUpdateAGUIExtensions
                         yield return CreateStateDeltaUpdate(stateDelta, conversationId, responseId, jsonSerializerOptions);
                     }
                     break;
+
+                // Custom events - emit directly with RawRepresentation
+                case CustomEvent customEvent:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [])
+                    {
+                        ConversationId = conversationId,
+                        ResponseId = responseId,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        RawRepresentation = customEvent
+                    };
+                    break;
             }
         }
     }
@@ -106,6 +120,7 @@ internal static class ChatResponseUpdateAGUIExtensions
             ConversationId = conversationId,
             ResponseId = responseId,
             CreatedAt = DateTimeOffset.UtcNow,
+            RawRepresentation = stateSnapshot,
             AdditionalProperties = new AdditionalPropertiesDictionary
             {
                 ["is_state_snapshot"] = true
@@ -130,6 +145,7 @@ internal static class ChatResponseUpdateAGUIExtensions
             ConversationId = conversationId,
             ResponseId = responseId,
             CreatedAt = DateTimeOffset.UtcNow,
+            RawRepresentation = stateDelta,
             AdditionalProperties = new AdditionalPropertiesDictionary
             {
                 ["is_state_delta"] = true
@@ -170,7 +186,8 @@ internal static class ChatResponseUpdateAGUIExtensions
                 ConversationId = this._conversationId,
                 ResponseId = this._responseId,
                 MessageId = textContent.MessageId,
-                CreatedAt = DateTimeOffset.UtcNow
+                CreatedAt = DateTimeOffset.UtcNow,
+                RawRepresentation = textContent
             };
         }
 
@@ -193,7 +210,8 @@ internal static class ChatResponseUpdateAGUIExtensions
         {
             ConversationId = runStarted.ThreadId,
             ResponseId = runStarted.RunId,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            RawRepresentation = runStarted
         };
     }
 
@@ -213,7 +231,8 @@ internal static class ChatResponseUpdateAGUIExtensions
         {
             ConversationId = conversationId,
             ResponseId = responseId,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            RawRepresentation = runFinished
         };
     }
 
@@ -276,7 +295,8 @@ internal static class ChatResponseUpdateAGUIExtensions
                 ConversationId = this._conversationId,
                 ResponseId = this._responseId,
                 MessageId = invocation.CallId,
-                CreatedAt = DateTimeOffset.UtcNow
+                CreatedAt = DateTimeOffset.UtcNow,
+                RawRepresentation = toolCallEnd
             };
         }
 
@@ -291,7 +311,8 @@ internal static class ChatResponseUpdateAGUIExtensions
                 ConversationId = this._conversationId,
                 ResponseId = this._responseId,
                 MessageId = toolCallResult.MessageId,
-                CreatedAt = DateTimeOffset.UtcNow
+                CreatedAt = DateTimeOffset.UtcNow,
+                RawRepresentation = toolCallResult
             };
         }
 
@@ -340,6 +361,15 @@ internal static class ChatResponseUpdateAGUIExtensions
         string? currentMessageId = null;
         await foreach (var chatResponse in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
+            // Check if RawRepresentation contains an AG-UI event - emit it directly.
+            // The BaseEvent may be nested inside an AgentResponseUpdate's RawRepresentation
+            // (when AsChatResponseUpdate wraps an AgentResponseUpdate that had a BaseEvent).
+            if (ExtractBaseEvent(chatResponse.RawRepresentation) is BaseEvent rawEvent)
+            {
+                yield return rawEvent;
+                continue;
+            }
+
             if (chatResponse is { Contents.Count: > 0 } &&
                 chatResponse.Contents[0] is TextContent &&
                 !string.Equals(currentMessageId, chatResponse.MessageId, StringComparison.Ordinal))
@@ -488,6 +518,21 @@ internal static class ChatResponseUpdateAGUIExtensions
             string str => str,
             JsonElement jsonElement => jsonElement.GetRawText(),
             _ => JsonSerializer.Serialize(functionResultContent.Result, options.GetTypeInfo(functionResultContent.Result.GetType())),
+        };
+    }
+
+    /// <summary>
+    /// Recursively extracts a BaseEvent from a RawRepresentation chain.
+    /// The BaseEvent may be nested inside an AgentResponseUpdate that was wrapped
+    /// by AsChatResponseUpdate when the original AgentResponseUpdate had RawRepresentation = BaseEvent.
+    /// </summary>
+    private static BaseEvent? ExtractBaseEvent(object? rawRepresentation)
+    {
+        return rawRepresentation switch
+        {
+            BaseEvent baseEvent => baseEvent,
+            AgentResponseUpdate agentUpdate => ExtractBaseEvent(agentUpdate.RawRepresentation),
+            _ => null
         };
     }
 }
