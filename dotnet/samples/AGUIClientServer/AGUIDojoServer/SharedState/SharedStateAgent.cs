@@ -3,6 +3,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using AGUI.Protocol;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
@@ -80,12 +81,11 @@ internal sealed class SharedStateAgent : DelegatingAIAgent
 
         if (response.TryDeserialize(this._jsonSerializerOptions, out JsonElement stateSnapshot))
         {
-            byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(
-                stateSnapshot,
-                this._jsonSerializerOptions.GetTypeInfo(typeof(JsonElement)));
+            // Emit STATE_SNAPSHOT via RawRepresentation as a native AG-UI event
             yield return new AgentResponseUpdate
             {
-                Contents = [new DataContent(stateBytes, "application/json")]
+                Contents = [],
+                RawRepresentation = new StateSnapshotEvent { Snapshot = stateSnapshot }
             };
         }
         else

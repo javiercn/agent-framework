@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Text;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.AGUI;
+using AGUI.Protocol;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -19,15 +20,29 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        // Add --message option for non-interactive mode
+        Option<string?> messageOption = new("--message", "-m")
+        {
+            Description = "Send a single message and exit (non-interactive mode)"
+        };
+
         // Create root command with options
-        RootCommand rootCommand = new("AGUIClient");
-        rootCommand.SetAction((_, ct) => HandleCommandsAsync(ct));
+        RootCommand rootCommand = new("AGUIClient")
+        {
+            messageOption
+        };
+
+        rootCommand.SetAction((parseResult, ct) =>
+        {
+            string? message = parseResult.GetValue(messageOption);
+            return HandleCommandsAsync(message, ct);
+        });
 
         // Run the command
         return await rootCommand.Parse(args).InvokeAsync();
     }
 
-    private static async Task HandleCommandsAsync(CancellationToken cancellationToken)
+    private static async Task HandleCommandsAsync(string? singleMessage, CancellationToken cancellationToken)
     {
         // Set up the logging
         using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
@@ -90,16 +105,33 @@ public static class Program
 
         AgentSession session = await agent.CreateSessionAsync(cancellationToken);
         List<ChatMessage> messages = [new(ChatRole.System, "You are a helpful assistant.")];
+
+        bool interactiveMode = singleMessage == null;
+
         try
         {
             while (true)
             {
-                // Get user message
-                Console.Write("\nUser (:q or quit to exit): ");
-                string? message = Console.ReadLine();
+                // Get user message (or use command line argument in non-interactive mode)
+                string? message;
+                if (interactiveMode)
+                {
+                    Console.Write("\nUser (:q or quit to exit): ");
+                    message = Console.ReadLine();
+                }
+                else
+                {
+                    message = singleMessage;
+                    Console.WriteLine($"\nUser: {message}");
+                }
+
                 if (string.IsNullOrWhiteSpace(message))
                 {
                     Console.WriteLine("Request cannot be empty.");
+                    if (!interactiveMode)
+                    {
+                        break;
+                    }
                     continue;
                 }
 
@@ -111,26 +143,37 @@ public static class Program
                 messages.Add(new(ChatRole.User, message));
 
                 // Call RunStreamingAsync to get streaming updates
-                bool isFirstUpdate = true;
                 string? sessionId = null;
-                var updates = new List<ChatResponseUpdate>();
                 await foreach (AgentResponseUpdate update in agent.RunStreamingAsync(messages, session, cancellationToken: cancellationToken))
                 {
                     // Use AsChatResponseUpdate to access ChatResponseUpdate properties
                     ChatResponseUpdate chatUpdate = update.AsChatResponseUpdate();
-                    updates.Add(chatUpdate);
                     if (chatUpdate.ConversationId != null)
                     {
                         sessionId = chatUpdate.ConversationId;
                     }
 
-                    // Display run started information from the first update
-                    if (isFirstUpdate && sessionId != null && update.ResponseId != null)
+                    // Handle AG-UI lifecycle events via RawRepresentation
+                    // The RawRepresentation may contain an AgentResponseUpdate -> ChatResponseUpdate -> BaseEvent chain
+                    switch (GetAGUIEvent(update))
                     {
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine($"\n[Run Started - Session: {sessionId}, Run: {update.ResponseId}]");
-                        Console.ResetColor();
-                        isFirstUpdate = false;
+                        case RunStartedEvent runStarted:
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine($"\n[Run Started - Session: {sessionId}, Run: {runStarted.RunId}]");
+                            Console.ResetColor();
+                            continue;
+
+                        case RunFinishedEvent runFinished:
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine($"\n[Run Finished - Session: {sessionId}, Run: {runFinished.RunId}]");
+                            Console.ResetColor();
+                            continue;
+
+                        case RunErrorEvent runError:
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"\n[Run Error - Session: {sessionId}, Message: {runError.Message}]");
+                            Console.ResetColor();
+                            continue;
                     }
 
                     // Display different content types with appropriate formatting
@@ -172,16 +215,14 @@ public static class Program
                         }
                     }
                 }
-                if (updates.Count > 0 && !updates[^1].Contents.Any(c => c is TextContent))
-                {
-                    var lastUpdate = updates[^1];
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine();
-                    Console.WriteLine($"[Run Ended - Session: {sessionId}, Run: {lastUpdate.ResponseId}]");
-                    Console.ResetColor();
-                }
                 messages.Clear();
                 Console.WriteLine();
+
+                // Exit after single message in non-interactive mode
+                if (!interactiveMode)
+                {
+                    break;
+                }
             }
         }
         catch (OperationCanceledException)
@@ -209,5 +250,22 @@ public static class Program
                 .AppendLine($"   Value: {kvp.Value}");
         }
         return builder.ToString();
+    }
+
+    // Helper function to extract AG-UI BaseEvent from the RawRepresentation chain
+    private static BaseEvent? GetAGUIEvent(AgentResponseUpdate update)
+    {
+        return FindBaseEvent(update.RawRepresentation);
+
+        static BaseEvent? FindBaseEvent(object? obj)
+        {
+            return obj switch
+            {
+                BaseEvent baseEvent => baseEvent,
+                AgentResponseUpdate aru => FindBaseEvent(aru.RawRepresentation),
+                ChatResponseUpdate cru => FindBaseEvent(cru.RawRepresentation),
+                _ => null
+            };
+        }
     }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft. All rights reserved.
+﻿// Copyright (c) Microsoft. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -229,6 +229,49 @@ public sealed class RawEventTests : IAsyncDisposable
         }
     }
 
+    [Fact]
+    public async Task AgentExplicitlyEmittingLifecycleEvents_DoesNotDuplicateAsync()
+    {
+        // Arrange
+        var fakeAgent = new FakeRawEventAgent();
+
+        await this.SetupTestServerAsync(fakeAgent);
+        var chatClient = new AGUIChatClient(this._client!, "", null);
+        AIAgent agent = chatClient.AsAIAgent(instructions: null, name: "assistant", description: "Sample assistant", tools: []);
+        ChatClientAgentSession? session = (ChatClientAgentSession)await agent.GetNewSessionAsync();
+
+        ChatMessage userMessage = new(ChatRole.User, "emit lifecycle events");
+
+        List<AgentResponseUpdate> updates = [];
+
+        // Act
+        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage], session, new AgentRunOptions(), CancellationToken.None))
+        {
+            updates.Add(update);
+        }
+
+        // Assert
+        updates.Should().NotBeEmpty();
+
+        // Should have exactly ONE RunStartedEvent (the explicit one)
+        int runStartedCount = updates.Count(u => ToAGUIEvent<RunStartedEvent>(u) is not null);
+        runStartedCount.Should().Be(1, "RunStartedEvent should not be duplicated when explicitly emitted");
+
+        // Verify the explicit RunStartedEvent has custom thread/run IDs
+        var runStarted = ToAGUIEvent<RunStartedEvent>(updates.First(u => ToAGUIEvent<RunStartedEvent>(u) is not null))!;
+        runStarted.ThreadId.Should().Be("custom-thread-123");
+        runStarted.RunId.Should().Be("custom-run-456");
+
+        // Should have exactly ONE RunFinishedEvent (the explicit one)
+        int runFinishedCount = updates.Count(u => ToAGUIEvent<RunFinishedEvent>(u) is not null);
+        runFinishedCount.Should().Be(1, "RunFinishedEvent should not be duplicated when explicitly emitted");
+
+        // Verify the explicit RunFinishedEvent has custom thread/run IDs
+        var runFinished = ToAGUIEvent<RunFinishedEvent>(updates.First(u => ToAGUIEvent<RunFinishedEvent>(u) is not null))!;
+        runFinished.ThreadId.Should().Be("custom-thread-123");
+        runFinished.RunId.Should().Be("custom-run-456");
+    }
+
     private async Task SetupTestServerAsync(FakeRawEventAgent fakeAgent)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
@@ -342,6 +385,38 @@ internal sealed class FakeRawEventAgent : AIAgent
                 MessageId = Guid.NewGuid().ToString("N"),
                 Role = ChatRole.Assistant,
                 Contents = [new TextContent("Mixed response with state")]
+            };
+        }
+        else if (userText?.Contains("emit lifecycle events", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            // Explicitly emit RunStartedEvent with custom IDs
+            yield return new AgentResponseUpdate
+            {
+                RawRepresentation = new RunStartedEvent
+                {
+                    ThreadId = "custom-thread-123",
+                    RunId = "custom-run-456"
+                },
+                Contents = []
+            };
+
+            // Emit some text
+            yield return new AgentResponseUpdate
+            {
+                MessageId = Guid.NewGuid().ToString("N"),
+                Role = ChatRole.Assistant,
+                Contents = [new TextContent("Response with explicit lifecycle")]
+            };
+
+            // Explicitly emit RunFinishedEvent with custom IDs
+            yield return new AgentResponseUpdate
+            {
+                RawRepresentation = new RunFinishedEvent
+                {
+                    ThreadId = "custom-thread-123",
+                    RunId = "custom-run-456"
+                },
+                Contents = []
             };
         }
         else

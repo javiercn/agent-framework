@@ -352,12 +352,8 @@ internal static class ChatResponseUpdateAGUIExtensions
         JsonSerializerOptions jsonSerializerOptions,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        yield return new RunStartedEvent
-        {
-            ThreadId = threadId,
-            RunId = runId
-        };
-
+        bool runStartedEmitted = false;
+        bool runFinishedEmitted = false;
         string? currentMessageId = null;
         await foreach (var chatResponse in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
@@ -366,8 +362,39 @@ internal static class ChatResponseUpdateAGUIExtensions
             // (when AsChatResponseUpdate wraps an AgentResponseUpdate that had a BaseEvent).
             if (ExtractBaseEvent(chatResponse.RawRepresentation) is BaseEvent rawEvent)
             {
+                // Track lifecycle events to avoid duplicate emissions
+                if (rawEvent is RunStartedEvent)
+                {
+                    runStartedEmitted = true;
+                }
+                else if (rawEvent is RunFinishedEvent)
+                {
+                    runFinishedEmitted = true;
+                }
+                else if (!runStartedEmitted)
+                {
+                    // Emit RunStartedEvent before any other event if not explicitly provided
+                    runStartedEmitted = true;
+                    yield return new RunStartedEvent
+                    {
+                        ThreadId = threadId,
+                        RunId = runId
+                    };
+                }
+
                 yield return rawEvent;
                 continue;
+            }
+
+            // Emit RunStartedEvent automatically if not explicitly provided
+            if (!runStartedEmitted)
+            {
+                runStartedEmitted = true;
+                yield return new RunStartedEvent
+                {
+                    ThreadId = threadId,
+                    RunId = runId
+                };
             }
 
             if (chatResponse is { Contents.Count: > 0 } &&
@@ -503,11 +530,15 @@ internal static class ChatResponseUpdateAGUIExtensions
             };
         }
 
-        yield return new RunFinishedEvent
+        // Emit RunFinishedEvent automatically if not explicitly provided
+        if (!runFinishedEmitted)
         {
-            ThreadId = threadId,
-            RunId = runId,
-        };
+            yield return new RunFinishedEvent
+            {
+                ThreadId = threadId,
+                RunId = runId,
+            };
+        }
     }
 
     private static string? SerializeResultContent(FunctionResultContent functionResultContent, JsonSerializerOptions options)

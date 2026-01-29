@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using AGUI.Protocol;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
@@ -66,19 +67,16 @@ internal sealed class StatefulAgent<TState> : DelegatingAIAgent
         // Stream the response and update state when received
         await foreach (AgentResponseUpdate update in this.InnerAgent.RunStreamingAsync(messagesWithState, session, options, cancellationToken))
         {
-            // Check if this update contains a state snapshot
-            foreach (AIContent content in update.Contents)
+            // Check if this update contains a state snapshot via RawRepresentation (AG-UI native event)
+            if (update.RawRepresentation is StateSnapshotEvent stateSnapshot && stateSnapshot.Snapshot is { } snapshot)
             {
-                if (content is DataContent dataContent && dataContent.MediaType == "application/json")
+                // Deserialize the state from the snapshot
+                TState? newState = JsonSerializer.Deserialize(
+                    snapshot.GetRawText(),
+                    this._jsonSerializerOptions.GetTypeInfo(typeof(TState))) as TState;
+                if (newState != null)
                 {
-                    // Deserialize the state
-                    TState? newState = JsonSerializer.Deserialize(
-                        dataContent.Data.Span,
-                        this._jsonSerializerOptions.GetTypeInfo(typeof(TState))) as TState;
-                    if (newState != null)
-                    {
-                        this.State = newState;
-                    }
+                    this.State = newState;
                 }
             }
 
