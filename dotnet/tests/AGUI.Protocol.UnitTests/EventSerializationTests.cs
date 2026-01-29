@@ -247,42 +247,50 @@ public class EventSerializationTests
     }
 
     [Fact]
-    public void ThinkingStartEvent_SerializesCorrectly()
+    public void ReasoningStartEvent_SerializesCorrectly()
     {
         // Arrange
-        var evt = new ThinkingStartEvent();
+        var evt = new ReasoningStartEvent
+        {
+            MessageId = "reasoning_123"
+        };
 
         // Act
         var json = JsonSerializer.Serialize(evt, s_options);
         var deserialized = JsonSerializer.Deserialize<BaseEvent>(json, s_options);
 
         // Assert
-        deserialized.Should().BeOfType<ThinkingStartEvent>();
-        var result = (ThinkingStartEvent)deserialized!;
-        result.Type.Should().Be(AGUIEventTypes.ThinkingStart);
+        deserialized.Should().BeOfType<ReasoningStartEvent>();
+        var result = (ReasoningStartEvent)deserialized!;
+        result.Type.Should().Be(AGUIEventTypes.ReasoningStart);
+        result.MessageId.Should().Be("reasoning_123");
     }
 
     [Fact]
-    public void ThinkingEndEvent_SerializesCorrectly()
+    public void ReasoningEndEvent_SerializesCorrectly()
     {
         // Arrange
-        var evt = new ThinkingEndEvent();
+        var evt = new ReasoningEndEvent
+        {
+            MessageId = "reasoning_123"
+        };
 
         // Act
         var json = JsonSerializer.Serialize(evt, s_options);
         var deserialized = JsonSerializer.Deserialize<BaseEvent>(json, s_options);
 
         // Assert
-        deserialized.Should().BeOfType<ThinkingEndEvent>();
-        var result = (ThinkingEndEvent)deserialized!;
-        result.Type.Should().Be(AGUIEventTypes.ThinkingEnd);
+        deserialized.Should().BeOfType<ReasoningEndEvent>();
+        var result = (ReasoningEndEvent)deserialized!;
+        result.Type.Should().Be(AGUIEventTypes.ReasoningEnd);
+        result.MessageId.Should().Be("reasoning_123");
     }
 
     [Fact]
-    public void ThinkingTextMessageContentEvent_SerializesCorrectly()
+    public void ReasoningMessageContentEvent_SerializesCorrectly()
     {
         // Arrange
-        var evt = new ThinkingTextMessageContentEvent
+        var evt = new ReasoningMessageContentEvent
         {
             MessageId = "msg_123",
             Delta = "Let me think..."
@@ -293,9 +301,9 @@ public class EventSerializationTests
         var deserialized = JsonSerializer.Deserialize<BaseEvent>(json, s_options);
 
         // Assert
-        deserialized.Should().BeOfType<ThinkingTextMessageContentEvent>();
-        var result = (ThinkingTextMessageContentEvent)deserialized!;
-        result.Type.Should().Be(AGUIEventTypes.ThinkingTextMessageContent);
+        deserialized.Should().BeOfType<ReasoningMessageContentEvent>();
+        var result = (ReasoningMessageContentEvent)deserialized!;
+        result.Type.Should().Be(AGUIEventTypes.ReasoningMessageContent);
         result.MessageId.Should().Be("msg_123");
         result.Delta.Should().Be("Let me think...");
     }
@@ -500,12 +508,13 @@ public class EventSerializationTests
     }
 
     [Fact]
-    public void ThinkingTextMessageStartEvent_SerializesCorrectly()
+    public void ReasoningMessageStartEvent_SerializesCorrectly()
     {
         // Arrange
-        var evt = new ThinkingTextMessageStartEvent
+        var evt = new ReasoningMessageStartEvent
         {
-            MessageId = "msg_thinking_1"
+            MessageId = "msg_reasoning_1",
+            Role = AGUIRoles.Assistant
         };
 
         // Act
@@ -513,19 +522,20 @@ public class EventSerializationTests
         var deserialized = JsonSerializer.Deserialize<BaseEvent>(json, s_options);
 
         // Assert
-        deserialized.Should().BeOfType<ThinkingTextMessageStartEvent>();
-        var result = (ThinkingTextMessageStartEvent)deserialized!;
-        result.Type.Should().Be(AGUIEventTypes.ThinkingTextMessageStart);
-        result.MessageId.Should().Be("msg_thinking_1");
+        deserialized.Should().BeOfType<ReasoningMessageStartEvent>();
+        var result = (ReasoningMessageStartEvent)deserialized!;
+        result.Type.Should().Be(AGUIEventTypes.ReasoningMessageStart);
+        result.MessageId.Should().Be("msg_reasoning_1");
+        result.Role.Should().Be(AGUIRoles.Assistant);
     }
 
     [Fact]
-    public void ThinkingTextMessageEndEvent_SerializesCorrectly()
+    public void ReasoningMessageEndEvent_SerializesCorrectly()
     {
         // Arrange
-        var evt = new ThinkingTextMessageEndEvent
+        var evt = new ReasoningMessageEndEvent
         {
-            MessageId = "msg_thinking_1"
+            MessageId = "msg_reasoning_1"
         };
 
         // Act
@@ -533,9 +543,31 @@ public class EventSerializationTests
         var deserialized = JsonSerializer.Deserialize<BaseEvent>(json, s_options);
 
         // Assert
-        deserialized.Should().BeOfType<ThinkingTextMessageEndEvent>();
-        var result = (ThinkingTextMessageEndEvent)deserialized!;
-        result.Type.Should().Be(AGUIEventTypes.ThinkingTextMessageEnd);
-        result.MessageId.Should().Be("msg_thinking_1");
+        deserialized.Should().BeOfType<ReasoningMessageEndEvent>();
+        var result = (ReasoningMessageEndEvent)deserialized!;
+        result.Type.Should().Be(AGUIEventTypes.ReasoningMessageEnd);
+        result.MessageId.Should().Be("msg_reasoning_1");
+    }
+
+    [Fact]
+    public void ReasoningMessageChunkEvent_SerializesCorrectly()
+    {
+        // Arrange
+        var evt = new ReasoningMessageChunkEvent
+        {
+            MessageId = "msg_reasoning_1",
+            Delta = "Thinking step by step..."
+        };
+
+        // Act
+        var json = JsonSerializer.Serialize(evt, s_options);
+        var deserialized = JsonSerializer.Deserialize<BaseEvent>(json, s_options);
+
+        // Assert
+        deserialized.Should().BeOfType<ReasoningMessageChunkEvent>();
+        var result = (ReasoningMessageChunkEvent)deserialized!;
+        result.Type.Should().Be(AGUIEventTypes.ReasoningMessageChunk);
+        result.MessageId.Should().Be("msg_reasoning_1");
+        result.Delta.Should().Be("Thinking step by step...");
     }
 }

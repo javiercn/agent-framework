@@ -5,15 +5,15 @@ using System.Text.Json.Serialization;
 namespace AGUI.Protocol;
 
 /// <summary>
-/// Event emitted when a thinking text message ends.
+/// Event emitted when the agent ends reasoning.
 /// </summary>
-public sealed class ThinkingTextMessageEndEvent : BaseEvent
+public sealed class ReasoningEndEvent : BaseEvent
 {
     /// <inheritdoc />
-    public override string Type => AGUIEventTypes.ThinkingTextMessageEnd;
+    public override string Type => AGUIEventTypes.ReasoningEnd;
 
     /// <summary>
-    /// Gets or sets the message identifier.
+    /// Gets or sets the unique identifier for this reasoning session.
     /// </summary>
     [JsonPropertyName("messageId")]
     public string MessageId { get; set; } = string.Empty;

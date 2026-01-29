@@ -54,11 +54,12 @@ public sealed class BaseEventJsonConverter : JsonConverter<BaseEvent>
             AGUIEventTypes.ActivitySnapshot => jsonElement.Deserialize(options.GetTypeInfo(typeof(ActivitySnapshotEvent))) as ActivitySnapshotEvent,
             AGUIEventTypes.ActivityDelta => jsonElement.Deserialize(options.GetTypeInfo(typeof(ActivityDeltaEvent))) as ActivityDeltaEvent,
             AGUIEventTypes.MessagesSnapshot => jsonElement.Deserialize(options.GetTypeInfo(typeof(MessagesSnapshotEvent))) as MessagesSnapshotEvent,
-            AGUIEventTypes.ThinkingStart => jsonElement.Deserialize(options.GetTypeInfo(typeof(ThinkingStartEvent))) as ThinkingStartEvent,
-            AGUIEventTypes.ThinkingEnd => jsonElement.Deserialize(options.GetTypeInfo(typeof(ThinkingEndEvent))) as ThinkingEndEvent,
-            AGUIEventTypes.ThinkingTextMessageStart => jsonElement.Deserialize(options.GetTypeInfo(typeof(ThinkingTextMessageStartEvent))) as ThinkingTextMessageStartEvent,
-            AGUIEventTypes.ThinkingTextMessageContent => jsonElement.Deserialize(options.GetTypeInfo(typeof(ThinkingTextMessageContentEvent))) as ThinkingTextMessageContentEvent,
-            AGUIEventTypes.ThinkingTextMessageEnd => jsonElement.Deserialize(options.GetTypeInfo(typeof(ThinkingTextMessageEndEvent))) as ThinkingTextMessageEndEvent,
+            AGUIEventTypes.ReasoningStart => jsonElement.Deserialize(options.GetTypeInfo(typeof(ReasoningStartEvent))) as ReasoningStartEvent,
+            AGUIEventTypes.ReasoningEnd => jsonElement.Deserialize(options.GetTypeInfo(typeof(ReasoningEndEvent))) as ReasoningEndEvent,
+            AGUIEventTypes.ReasoningMessageStart => jsonElement.Deserialize(options.GetTypeInfo(typeof(ReasoningMessageStartEvent))) as ReasoningMessageStartEvent,
+            AGUIEventTypes.ReasoningMessageContent => jsonElement.Deserialize(options.GetTypeInfo(typeof(ReasoningMessageContentEvent))) as ReasoningMessageContentEvent,
+            AGUIEventTypes.ReasoningMessageEnd => jsonElement.Deserialize(options.GetTypeInfo(typeof(ReasoningMessageEndEvent))) as ReasoningMessageEndEvent,
+            AGUIEventTypes.ReasoningMessageChunk => jsonElement.Deserialize(options.GetTypeInfo(typeof(ReasoningMessageChunkEvent))) as ReasoningMessageChunkEvent,
             AGUIEventTypes.Raw => jsonElement.Deserialize(options.GetTypeInfo(typeof(RawEvent))) as RawEvent,
             AGUIEventTypes.Custom => jsonElement.Deserialize(options.GetTypeInfo(typeof(CustomEvent))) as CustomEvent,
             _ => throw new JsonException($"Unknown BaseEvent type discriminator: '{discriminator}'")
@@ -132,20 +133,23 @@ public sealed class BaseEventJsonConverter : JsonConverter<BaseEvent>
             case MessagesSnapshotEvent messagesSnapshot:
                 JsonSerializer.Serialize(writer, messagesSnapshot, options.GetTypeInfo(typeof(MessagesSnapshotEvent)));
                 break;
-            case ThinkingStartEvent thinkingStart:
-                JsonSerializer.Serialize(writer, thinkingStart, options.GetTypeInfo(typeof(ThinkingStartEvent)));
+            case ReasoningStartEvent reasoningStart:
+                JsonSerializer.Serialize(writer, reasoningStart, options.GetTypeInfo(typeof(ReasoningStartEvent)));
                 break;
-            case ThinkingEndEvent thinkingEnd:
-                JsonSerializer.Serialize(writer, thinkingEnd, options.GetTypeInfo(typeof(ThinkingEndEvent)));
+            case ReasoningEndEvent reasoningEnd:
+                JsonSerializer.Serialize(writer, reasoningEnd, options.GetTypeInfo(typeof(ReasoningEndEvent)));
                 break;
-            case ThinkingTextMessageStartEvent thinkingTextStart:
-                JsonSerializer.Serialize(writer, thinkingTextStart, options.GetTypeInfo(typeof(ThinkingTextMessageStartEvent)));
+            case ReasoningMessageStartEvent reasoningMessageStart:
+                JsonSerializer.Serialize(writer, reasoningMessageStart, options.GetTypeInfo(typeof(ReasoningMessageStartEvent)));
                 break;
-            case ThinkingTextMessageContentEvent thinkingTextContent:
-                JsonSerializer.Serialize(writer, thinkingTextContent, options.GetTypeInfo(typeof(ThinkingTextMessageContentEvent)));
+            case ReasoningMessageContentEvent reasoningMessageContent:
+                JsonSerializer.Serialize(writer, reasoningMessageContent, options.GetTypeInfo(typeof(ReasoningMessageContentEvent)));
                 break;
-            case ThinkingTextMessageEndEvent thinkingTextEnd:
-                JsonSerializer.Serialize(writer, thinkingTextEnd, options.GetTypeInfo(typeof(ThinkingTextMessageEndEvent)));
+            case ReasoningMessageEndEvent reasoningMessageEnd:
+                JsonSerializer.Serialize(writer, reasoningMessageEnd, options.GetTypeInfo(typeof(ReasoningMessageEndEvent)));
+                break;
+            case ReasoningMessageChunkEvent reasoningMessageChunk:
+                JsonSerializer.Serialize(writer, reasoningMessageChunk, options.GetTypeInfo(typeof(ReasoningMessageChunkEvent)));
                 break;
             case RawEvent rawEvent:
                 JsonSerializer.Serialize(writer, rawEvent, options.GetTypeInfo(typeof(RawEvent)));

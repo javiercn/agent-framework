@@ -5,21 +5,21 @@ using System.Text.Json.Serialization;
 namespace AGUI.Protocol;
 
 /// <summary>
-/// Event emitted with thinking text message content chunks.
+/// Event emitted with reasoning message content chunks.
 /// </summary>
-public sealed class ThinkingTextMessageContentEvent : BaseEvent
+public sealed class ReasoningMessageContentEvent : BaseEvent
 {
     /// <inheritdoc />
-    public override string Type => AGUIEventTypes.ThinkingTextMessageContent;
+    public override string Type => AGUIEventTypes.ReasoningMessageContent;
 
     /// <summary>
-    /// Gets or sets the message identifier.
+    /// Gets or sets the message identifier (matches the ID from <see cref="ReasoningMessageStartEvent"/>).
     /// </summary>
     [JsonPropertyName("messageId")]
     public string MessageId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the content delta.
+    /// Gets or sets the reasoning content chunk (non-empty).
     /// </summary>
     [JsonPropertyName("delta")]
     public string Delta { get; set; } = string.Empty;

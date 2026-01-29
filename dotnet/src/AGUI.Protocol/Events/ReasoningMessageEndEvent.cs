@@ -5,15 +5,15 @@ using System.Text.Json.Serialization;
 namespace AGUI.Protocol;
 
 /// <summary>
-/// Event emitted when a thinking text message starts.
+/// Event emitted when a reasoning message ends.
 /// </summary>
-public sealed class ThinkingTextMessageStartEvent : BaseEvent
+public sealed class ReasoningMessageEndEvent : BaseEvent
 {
     /// <inheritdoc />
-    public override string Type => AGUIEventTypes.ThinkingTextMessageStart;
+    public override string Type => AGUIEventTypes.ReasoningMessageEnd;
 
     /// <summary>
-    /// Gets or sets the message identifier.
+    /// Gets or sets the message identifier (matches the ID from <see cref="ReasoningMessageStartEvent"/>).
     /// </summary>
     [JsonPropertyName("messageId")]
     public string MessageId { get; set; } = string.Empty;

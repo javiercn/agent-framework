@@ -93,29 +93,34 @@ public static class AGUIEventTypes
     public const string MessagesSnapshot = "MESSAGES_SNAPSHOT";
 
     /// <summary>
-    /// Indicates the start of a thinking phase.
+    /// Indicates the start of a reasoning phase.
     /// </summary>
-    public const string ThinkingStart = "THINKING_START";
+    public const string ReasoningStart = "REASONING_START";
 
     /// <summary>
-    /// Indicates the end of a thinking phase.
+    /// Indicates the end of a reasoning phase.
     /// </summary>
-    public const string ThinkingEnd = "THINKING_END";
+    public const string ReasoningEnd = "REASONING_END";
 
     /// <summary>
-    /// Indicates the start of a thinking text message.
+    /// Indicates the start of a reasoning message.
     /// </summary>
-    public const string ThinkingTextMessageStart = "THINKING_TEXT_MESSAGE_START";
+    public const string ReasoningMessageStart = "REASONING_MESSAGE_START";
 
     /// <summary>
-    /// Contains a chunk of thinking text content.
+    /// Contains a chunk of reasoning message content.
     /// </summary>
-    public const string ThinkingTextMessageContent = "THINKING_TEXT_MESSAGE_CONTENT";
+    public const string ReasoningMessageContent = "REASONING_MESSAGE_CONTENT";
 
     /// <summary>
-    /// Indicates the end of a thinking text message.
+    /// Indicates the end of a reasoning message.
     /// </summary>
-    public const string ThinkingTextMessageEnd = "THINKING_TEXT_MESSAGE_END";
+    public const string ReasoningMessageEnd = "REASONING_MESSAGE_END";
+
+    /// <summary>
+    /// A convenience event to auto start/close reasoning messages.
+    /// </summary>
+    public const string ReasoningMessageChunk = "REASONING_MESSAGE_CHUNK";
 
     /// <summary>
     /// Contains a raw event from an underlying provider.

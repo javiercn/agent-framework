@@ -99,6 +99,83 @@ internal static class ChatResponseUpdateAGUIExtensions
                         RawRepresentation = customEvent
                     };
                     break;
+
+                // Reasoning events (new spec) - emit with TextReasoningContent or as lifecycle events
+                case ReasoningStartEvent reasoningStart:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [])
+                    {
+                        ConversationId = conversationId,
+                        ResponseId = responseId,
+                        MessageId = reasoningStart.MessageId,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        RawRepresentation = reasoningStart
+                    };
+                    break;
+                case ReasoningEndEvent reasoningEnd:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [])
+                    {
+                        ConversationId = conversationId,
+                        ResponseId = responseId,
+                        MessageId = reasoningEnd.MessageId,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        RawRepresentation = reasoningEnd
+                    };
+                    break;
+                case ReasoningMessageStartEvent reasoningMessageStart:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [])
+                    {
+                        ConversationId = conversationId,
+                        ResponseId = responseId,
+                        MessageId = reasoningMessageStart.MessageId,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        RawRepresentation = reasoningMessageStart
+                    };
+                    break;
+                case ReasoningMessageContentEvent reasoningMessageContent:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent(reasoningMessageContent.Delta)])
+                    {
+                        ConversationId = conversationId,
+                        ResponseId = responseId,
+                        MessageId = reasoningMessageContent.MessageId,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        RawRepresentation = reasoningMessageContent
+                    };
+                    break;
+                case ReasoningMessageEndEvent reasoningMessageEnd:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [])
+                    {
+                        ConversationId = conversationId,
+                        ResponseId = responseId,
+                        MessageId = reasoningMessageEnd.MessageId,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        RawRepresentation = reasoningMessageEnd
+                    };
+                    break;
+                case ReasoningMessageChunkEvent reasoningMessageChunk:
+                    // Convenience event - emit as TextReasoningContent if delta is present
+                    if (!string.IsNullOrEmpty(reasoningMessageChunk.Delta))
+                    {
+                        yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent(reasoningMessageChunk.Delta)])
+                        {
+                            ConversationId = conversationId,
+                            ResponseId = responseId,
+                            MessageId = reasoningMessageChunk.MessageId,
+                            CreatedAt = DateTimeOffset.UtcNow,
+                            RawRepresentation = reasoningMessageChunk
+                        };
+                    }
+                    else
+                    {
+                        yield return new ChatResponseUpdate(ChatRole.Assistant, [])
+                        {
+                            ConversationId = conversationId,
+                            ResponseId = responseId,
+                            MessageId = reasoningMessageChunk.MessageId,
+                            CreatedAt = DateTimeOffset.UtcNow,
+                            RawRepresentation = reasoningMessageChunk
+                        };
+                    }
+                    break;
             }
         }
     }
@@ -355,6 +432,8 @@ internal static class ChatResponseUpdateAGUIExtensions
         bool runStartedEmitted = false;
         bool runFinishedEmitted = false;
         string? currentMessageId = null;
+        string? currentReasoningMessageId = null;
+        string? reasoningSessionId = null;
         await foreach (var chatResponse in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             // Check if RawRepresentation contains an AG-UI event - emit it directly.
@@ -401,6 +480,24 @@ internal static class ChatResponseUpdateAGUIExtensions
                 chatResponse.Contents[0] is TextContent &&
                 !string.Equals(currentMessageId, chatResponse.MessageId, StringComparison.Ordinal))
             {
+                // End reasoning events if we're transitioning to regular text content
+                if (reasoningSessionId is not null)
+                {
+                    if (currentReasoningMessageId is not null)
+                    {
+                        yield return new ReasoningMessageEndEvent
+                        {
+                            MessageId = currentReasoningMessageId
+                        };
+                        currentReasoningMessageId = null;
+                    }
+                    yield return new ReasoningEndEvent
+                    {
+                        MessageId = reasoningSessionId
+                    };
+                    reasoningSessionId = null;
+                }
+
                 // End the previous message if there was one
                 if (currentMessageId is not null)
                 {
@@ -468,6 +565,49 @@ internal static class ChatResponseUpdateAGUIExtensions
                             Role = AGUIRoles.Tool
                         };
                     }
+                    else if (content is TextReasoningContent reasoningContent)
+                    {
+                        // Emit reasoning events for reasoning content (new REASONING_* events)
+                        if (reasoningSessionId is null)
+                        {
+                            reasoningSessionId = Guid.NewGuid().ToString("N");
+                            yield return new ReasoningStartEvent
+                            {
+                                MessageId = reasoningSessionId
+                            };
+                        }
+
+                        // Start a new reasoning message if needed
+                        string reasoningMsgId = chatResponse.MessageId ?? Guid.NewGuid().ToString("N");
+                        if (currentReasoningMessageId != reasoningMsgId)
+                        {
+                            // End previous reasoning message if any
+                            if (currentReasoningMessageId is not null)
+                            {
+                                yield return new ReasoningMessageEndEvent
+                                {
+                                    MessageId = currentReasoningMessageId
+                                };
+                            }
+
+                            currentReasoningMessageId = reasoningMsgId;
+                            yield return new ReasoningMessageStartEvent
+                            {
+                                MessageId = currentReasoningMessageId,
+                                Role = AGUIRoles.Assistant
+                            };
+                        }
+
+                        // Emit reasoning content
+                        if (!string.IsNullOrEmpty(reasoningContent.Text))
+                        {
+                            yield return new ReasoningMessageContentEvent
+                            {
+                                MessageId = currentReasoningMessageId,
+                                Delta = reasoningContent.Text
+                            };
+                        }
+                    }
                     else if (content is DataContent dataContent)
                     {
                         if (MediaTypeHeaderValue.TryParse(dataContent.MediaType, out var mediaType) && mediaType.Equals(s_json))
@@ -519,6 +659,22 @@ internal static class ChatResponseUpdateAGUIExtensions
                     }
                 }
             }
+        }
+
+        // End any remaining reasoning events
+        if (reasoningSessionId is not null)
+        {
+            if (currentReasoningMessageId is not null)
+            {
+                yield return new ReasoningMessageEndEvent
+                {
+                    MessageId = currentReasoningMessageId
+                };
+            }
+            yield return new ReasoningEndEvent
+            {
+                MessageId = reasoningSessionId
+            };
         }
 
         // End the last message if there was one
