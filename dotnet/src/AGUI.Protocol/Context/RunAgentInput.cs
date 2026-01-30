@@ -55,4 +55,15 @@ public sealed class RunAgentInput
     [JsonPropertyName("forwardedProps")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public JsonElement ForwardedProperties { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resume payload for continuing from an interrupt.
+    /// </summary>
+    /// <remarks>
+    /// When resuming from an interrupt, this contains the user's response
+    /// to the interrupt request (approval decision or input data).
+    /// </remarks>
+    [JsonPropertyName("resume")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AGUIResume? Resume { get; set; }
 }

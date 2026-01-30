@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -11,6 +12,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using AGUI.Protocol;
 using Microsoft.Extensions.AI;
+
+#pragma warning disable MEAI001 // Experimental API - FunctionApprovalRequestContent, UserInputRequestContent
 
 namespace Microsoft.Agents.AI.AGUI;
 
@@ -41,7 +44,7 @@ internal static class ChatResponseUpdateAGUIExtensions
                     yield return ValidateAndEmitRunStart(runStarted);
                     break;
                 case RunFinishedEvent runFinished:
-                    yield return ValidateAndEmitRunFinished(conversationId, responseId, runFinished);
+                    yield return ValidateAndEmitRunFinished(conversationId, responseId, runFinished, jsonSerializerOptions);
                     break;
                 case RunErrorEvent runError:
                     yield return new ChatResponseUpdate(ChatRole.Assistant, [(new ErrorContent(runError.Message) { ErrorCode = runError.Code })])
@@ -292,7 +295,7 @@ internal static class ChatResponseUpdateAGUIExtensions
         };
     }
 
-    private static ChatResponseUpdate ValidateAndEmitRunFinished(string? conversationId, string? responseId, RunFinishedEvent runFinished)
+    private static ChatResponseUpdate ValidateAndEmitRunFinished(string? conversationId, string? responseId, RunFinishedEvent runFinished, JsonSerializerOptions jsonSerializerOptions)
     {
         if (!string.Equals(runFinished.ThreadId, conversationId, StringComparison.Ordinal))
         {
@@ -301,6 +304,24 @@ internal static class ChatResponseUpdateAGUIExtensions
         if (!string.Equals(runFinished.RunId, responseId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException($"The run finished event didn't match the run started event run ID: {runFinished.RunId}, {responseId}");
+        }
+
+        // Check if this is an interrupt (explicit outcome or presence of interrupt payload)
+        var isInterrupt = string.Equals(runFinished.Outcome, RunFinishedOutcome.Interrupt, StringComparison.OrdinalIgnoreCase)
+            || (runFinished.Interrupt is not null && runFinished.Outcome is null);
+
+        if (isInterrupt && runFinished.Interrupt is { } interrupt)
+        {
+            // Convert interrupt to appropriate MEAI content type
+            var interruptContent = InterruptContentExtensions.FromAGUIInterrupt(interrupt);
+            return new ChatResponseUpdate(
+                ChatRole.Assistant, [interruptContent])
+            {
+                ConversationId = conversationId,
+                ResponseId = responseId,
+                CreatedAt = DateTimeOffset.UtcNow,
+                RawRepresentation = runFinished
+            };
         }
 
         return new ChatResponseUpdate(
@@ -656,6 +677,30 @@ internal static class ChatResponseUpdateAGUIExtensions
 #endif
                             };
                         }
+                    }
+                    else if (content is FunctionApprovalRequestContent approvalRequest)
+                    {
+                        // Emit RunFinishedEvent with interrupt for function approval
+                        runFinishedEmitted = true;
+                        yield return new RunFinishedEvent
+                        {
+                            ThreadId = threadId,
+                            RunId = runId,
+                            Outcome = RunFinishedOutcome.Interrupt,
+                            Interrupt = InterruptContentExtensions.ToAGUIInterrupt(approvalRequest, jsonSerializerOptions)
+                        };
+                    }
+                    else if (content is UserInputRequestContent userInputRequest && content is not FunctionApprovalRequestContent)
+                    {
+                        // Emit RunFinishedEvent with interrupt for user input request
+                        runFinishedEmitted = true;
+                        yield return new RunFinishedEvent
+                        {
+                            ThreadId = threadId,
+                            RunId = runId,
+                            Outcome = RunFinishedOutcome.Interrupt,
+                            Interrupt = InterruptContentExtensions.ToAGUIInterrupt(userInputRequest)
+                        };
                     }
                 }
             }

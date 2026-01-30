@@ -44,8 +44,16 @@ public static class AGUIEndpointRouteBuilderExtensions
             var jsonOptions = context.RequestServices.GetRequiredService<IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>>();
             var jsonSerializerOptions = jsonOptions.Value.SerializerOptions;
 
-            var messages = input.Messages.AsChatMessages(jsonSerializerOptions);
+            var messages = input.Messages.AsChatMessages(jsonSerializerOptions).ToList();
             var clientTools = input.Tools?.AsAITools().ToList();
+
+            // Handle resume payload if present (continuing from an interrupt)
+            if (input.Resume is { } resume)
+            {
+                // Convert the resume to appropriate MEAI response content and add to messages
+                var resumeContent = InterruptContentExtensions.FromAGUIResume(resume);
+                messages.Add(new ChatMessage(ChatRole.User, [resumeContent]));
+            }
 
             // Create run options with AG-UI context in AdditionalProperties
             var runOptions = new ChatClientAgentRunOptions

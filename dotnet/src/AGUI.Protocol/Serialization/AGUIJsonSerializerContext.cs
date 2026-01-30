@@ -39,6 +39,9 @@ namespace AGUI.Protocol;
 // Context types
 [JsonSerializable(typeof(AGUIContextItem))]
 [JsonSerializable(typeof(AGUIContextItem[]))]
+// Interrupt and resume types
+[JsonSerializable(typeof(AGUIInterrupt))]
+[JsonSerializable(typeof(AGUIResume))]
 // Base event types
 [JsonSerializable(typeof(BaseEvent))]
 [JsonSerializable(typeof(BaseEvent[]))]

@@ -281,6 +281,148 @@ innerOptions.ConversationId = null;  // Prevent FICC from skipping history
 finalUpdate.ConversationId = threadId;  // Restore for caller
 ```
 
+## Interrupt / Resume Mappings (Human-in-the-Loop)
+
+AG-UI supports **interrupts** for human-in-the-loop scenarios. The library provides bidirectional mapping between AG-UI interrupt types and MEAI's experimental interrupt content types via `InterruptContentExtensions`.
+
+### MEAI Interrupt Types (Experimental - MEAI001)
+
+| MEAI Type | Purpose | Key Properties |
+|-----------|---------|----------------|
+| `FunctionApprovalRequestContent` | Agent requests approval before executing a function | `Id`, `FunctionCall` |
+| `FunctionApprovalResponseContent` | User's approval/rejection decision | `Id`, `Approved`, `FunctionCall` |
+| `UserInputRequestContent` | Agent requests additional user input | `Id` |
+| `UserInputResponseContent` | User's response to input request | `Id` |
+
+**Note**: The MEAI interrupt types are experimental (`#pragma warning disable MEAI001`). The `UserInputRequestContent` and `UserInputResponseContent` have protected constructors, so the library provides derived types: `AGUIUserInputRequestContent` and `AGUIUserInputResponseContent`.
+
+### AG-UI Interrupt Types
+
+| AG-UI Type | Purpose | Key Properties |
+|------------|---------|----------------|
+| `AGUIInterrupt` | Interrupt payload in `RunFinishedEvent` | `Id`, `Payload` (JsonElement) |
+| `AGUIResume` | Resume payload in `RunAgentInput` | `InterruptId`, `Payload` (JsonElement) |
+| `RunFinishedOutcome` | Constants: `Success`, `Interrupt` | - |
+
+### Mapping Direction: AG-UI → MEAI (Inbound)
+
+#### `InterruptContentExtensions.FromAGUIInterrupt(AGUIInterrupt)`
+
+Converts an AG-UI interrupt to MEAI content based on payload structure:
+
+| AG-UI Payload Pattern | MEAI Content Type | Detection Logic |
+|----------------------|-------------------|-----------------|
+| `{ "functionName": "...", "functionArguments": {...} }` | `FunctionApprovalRequestContent` | Has `functionName` property |
+| `{ "prompt": "...", ... }` or any other | `AGUIUserInputRequestContent` | Fallback for non-function payloads |
+| No payload | `AGUIUserInputRequestContent` | Empty payload defaults to user input |
+
+#### `InterruptContentExtensions.FromAGUIResume(AGUIResume, AIContent?)`
+
+Converts an AG-UI resume to MEAI content based on original interrupt:
+
+| Original Interrupt Type | Resume Payload | MEAI Content Type |
+|------------------------|----------------|-------------------|
+| `FunctionApprovalRequestContent` | `{ "approved": true/false }` | `FunctionApprovalResponseContent` |
+| `UserInputRequestContent` | Any JSON | `AGUIUserInputResponseContent` |
+| Unknown | Any JSON | `AGUIUserInputResponseContent` |
+
+### Mapping Direction: MEAI → AG-UI (Outbound)
+
+#### `InterruptContentExtensions.ToAGUIInterrupt(FunctionApprovalRequestContent)`
+
+```csharp
+// Creates AGUIInterrupt with function details in payload
+new AGUIInterrupt
+{
+    Id = approvalRequest.Id,
+    Payload = JsonDocument.Parse("""
+        {
+            "functionName": "...",
+            "functionArguments": {...}
+        }
+        """).RootElement
+}
+```
+
+#### `InterruptContentExtensions.ToAGUIInterrupt(UserInputRequestContent)`
+
+```csharp
+// If RawRepresentation is AGUIInterrupt, returns it directly
+// If RawRepresentation is JsonElement, uses as payload
+// Otherwise creates minimal interrupt
+new AGUIInterrupt
+{
+    Id = inputRequest.Id,
+    Payload = inputRequest.RawRepresentation as JsonElement?
+}
+```
+
+#### `InterruptContentExtensions.ToAGUIResume(FunctionApprovalResponseContent)`
+
+```csharp
+new AGUIResume
+{
+    InterruptId = approvalResponse.Id,
+    Payload = JsonDocument.Parse("""{"approved": true}""").RootElement
+}
+```
+
+#### `InterruptContentExtensions.ToAGUIResume(UserInputResponseContent)`
+
+```csharp
+new AGUIResume
+{
+    InterruptId = inputResponse.Id,
+    Payload = inputResponse.RawRepresentation as JsonElement?
+}
+```
+
+### Integration with Event Stream
+
+The `ChatResponseUpdateAGUIExtensions.AsAGUIEventStreamAsync` method handles interrupts:
+
+1. When encountering `FunctionApprovalRequestContent` or `UserInputRequestContent`:
+   - Converts to `AGUIInterrupt` using `ToAGUIInterrupt`
+   - Marks the run builder for interrupt outcome
+
+2. `ValidateAndEmitRunFinished` emits:
+   ```csharp
+   new RunFinishedEvent
+   {
+       Outcome = RunFinishedOutcome.Interrupt,  // "interrupt"
+       Interrupt = interrupt
+   }
+   ```
+
+### Integration with Hosting Layer
+
+The `AGUIEndpointRouteBuilderExtensions.MapPostRunAgent` method handles resume:
+
+1. Deserializes `RunAgentInput` from request body
+2. If `input.Resume` is present:
+   - Converts to MEAI content using `FromAGUIResume`
+   - Adds to the last message's content for the agent to process
+
+### Usage Example: Function Approval Flow
+
+```csharp
+// 1. Agent requests approval (server-side)
+var approvalRequest = new FunctionApprovalRequestContent(
+    "call_abc",
+    new FunctionCallContent("call_abc", "delete_file", args));
+
+// 2. Converts to AG-UI interrupt for wire transmission
+var interrupt = InterruptContentExtensions.ToAGUIInterrupt(approvalRequest, options);
+// Sent as: {"id":"call_abc","payload":{"functionName":"delete_file","functionArguments":{...}}}
+
+// 3. Client receives interrupt, user approves
+var resume = new AGUIResume { InterruptId = "call_abc", Payload = JsonDocument.Parse("""{"approved":true}""").RootElement };
+
+// 4. Client sends resume, server converts back to MEAI
+var content = InterruptContentExtensions.FromAGUIResume(resume, originalRequest);
+// Returns FunctionApprovalResponseContent with Approved = true
+```
+
 ## State Management
 
 AG-UI state (`StateSnapshotEvent`, `StateDeltaEvent`) maps to MEAI `DataContent`:

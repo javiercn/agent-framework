@@ -403,6 +403,133 @@ type ReasoningMessageChunkEvent = BaseEvent & {
 }
 ```
 
+### Interrupt / Resume Pattern (Human-in-the-Loop)
+
+AG-UI supports **interrupts** for human-in-the-loop scenarios where agents pause execution to request user approval or input before proceeding.
+
+#### Interrupt Types
+
+1. **Function Approval**: Agent requests user approval before executing a sensitive function
+2. **User Input**: Agent requests additional information from the user
+
+#### RunFinishedEvent with Interrupt
+
+When an agent needs to pause for user interaction, it emits a `RunFinishedEvent` with an `outcome` of `"interrupt"`:
+
+```typescript
+type RunFinishedEvent = BaseEvent & {
+  type: "RUN_FINISHED"
+  threadId: string
+  runId: string
+  result?: any
+  outcome?: "success" | "interrupt"  // Optional outcome indicator
+  interrupt?: AGUIInterrupt          // Present when outcome is "interrupt"
+}
+
+type AGUIInterrupt = {
+  id: string         // Unique identifier for this interrupt (used to match resume)
+  payload?: any      // Context-specific data (function details, prompt, etc.)
+}
+```
+
+**Function Approval Interrupt Payload**:
+```json
+{
+  "id": "call_abc123",
+  "payload": {
+    "functionName": "delete_file",
+    "functionArguments": {
+      "path": "/important.txt"
+    }
+  }
+}
+```
+
+**User Input Interrupt Payload**:
+```json
+{
+  "id": "input_789",
+  "payload": {
+    "prompt": "Please enter your API key",
+    "inputType": "password"
+  }
+}
+```
+
+#### Resuming from an Interrupt
+
+To resume execution after user response, include an `AGUIResume` in the `RunAgentInput`:
+
+```typescript
+interface RunAgentInput {
+  threadId: string
+  runId: string
+  messages: Message[]
+  tools: Tool[]
+  context: Context[]
+  state: any
+  forwardedProps?: any
+  resume?: AGUIResume  // Present when resuming from an interrupt
+}
+
+interface AGUIResume {
+  interruptId: string  // Must match the interrupt's id
+  payload?: any        // User's response data
+}
+```
+
+**Function Approval Resume Payload**:
+```json
+{
+  "interruptId": "call_abc123",
+  "payload": {
+    "approved": true
+  }
+}
+```
+
+**User Input Resume Payload**:
+```json
+{
+  "interruptId": "input_789",
+  "payload": {
+    "response": "sk-secret-key-123"
+  }
+}
+```
+
+#### Interrupt Flow Diagram
+
+```
+┌──────────┐                    ┌──────────┐                    ┌──────────┐
+│  Client  │                    │  AG-UI   │                    │  Agent   │
+│   App    │                    │  Server  │                    │ Runtime  │
+└────┬─────┘                    └────┬─────┘                    └────┬─────┘
+     │                               │                               │
+     │  POST /run {messages, tools}  │                               │
+     │──────────────────────────────>│  Run agent                    │
+     │                               │──────────────────────────────>│
+     │                               │                               │
+     │                               │  FunctionApprovalRequest      │
+     │                               │<──────────────────────────────│
+     │  SSE: RUN_FINISHED            │                               │
+     │  (outcome: "interrupt")       │                               │
+     │<──────────────────────────────│                               │
+     │                               │                               │
+     │  [User approves in UI]        │                               │
+     │                               │                               │
+     │  POST /run {resume: {...}}    │                               │
+     │──────────────────────────────>│  Resume with approval         │
+     │                               │──────────────────────────────>│
+     │                               │                               │
+     │                               │  Continue execution           │
+     │                               │<──────────────────────────────│
+     │  SSE: RUN_FINISHED            │                               │
+     │  (outcome: "success")         │                               │
+     │<──────────────────────────────│                               │
+     │                               │                               │
+```
+
 ### Special Events
 
 #### RawEvent
