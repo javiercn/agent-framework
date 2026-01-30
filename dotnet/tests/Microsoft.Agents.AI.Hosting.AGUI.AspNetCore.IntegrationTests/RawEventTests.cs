@@ -272,6 +272,59 @@ public sealed class RawEventTests : IAsyncDisposable
         runFinished.RunId.Should().Be("custom-run-456");
     }
 
+    [Fact]
+    public async Task AgentEmittingTextReasoningContent_IsConvertedToReasoningEvents_AndBackToTextReasoningContentAsync()
+    {
+        // Arrange
+        var fakeAgent = new FakeRawEventAgent();
+
+        await this.SetupTestServerAsync(fakeAgent);
+        var chatClient = new AGUIChatClient(this._client!, "", null);
+        AIAgent agent = chatClient.AsAIAgent(instructions: null, name: "assistant", description: "Sample assistant", tools: []);
+        ChatClientAgentSession? session = (ChatClientAgentSession)await agent.GetNewSessionAsync();
+
+        ChatMessage userMessage = new(ChatRole.User, "emit reasoning content");
+
+        List<AgentResponseUpdate> updates = [];
+
+        // Act
+        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage], session, new AgentRunOptions(), CancellationToken.None))
+        {
+            updates.Add(update);
+        }
+
+        // Assert
+        updates.Should().NotBeEmpty();
+
+        // Should have ReasoningStartEvent
+        updates.Count(u => ToAGUIEvent<ReasoningStartEvent>(u) is not null).Should().BeGreaterThan(0, "should have ReasoningStartEvent");
+
+        // Should have ReasoningMessageStartEvent
+        updates.Count(u => ToAGUIEvent<ReasoningMessageStartEvent>(u) is not null).Should().BeGreaterThan(0, "should have ReasoningMessageStartEvent");
+
+        // Should have ReasoningMessageContentEvent with reasoning text
+        var reasoningContentUpdates = updates.Where(u => ToAGUIEvent<ReasoningMessageContentEvent>(u) is not null).ToList();
+        reasoningContentUpdates.Should().NotBeEmpty("should have ReasoningMessageContentEvent");
+
+        // Verify the client receives TextReasoningContent
+        var textReasoningUpdates = updates.Where(u => u.Contents.OfType<TextReasoningContent>().Any()).ToList();
+        textReasoningUpdates.Should().NotBeEmpty("client should receive TextReasoningContent");
+
+        // Verify the reasoning text content
+        string combinedReasoningText = string.Concat(textReasoningUpdates.SelectMany(u => u.Contents.OfType<TextReasoningContent>().Select(t => t.Text)));
+        combinedReasoningText.Should().Contain("Let me think", "reasoning text should contain expected content");
+
+        // Should have ReasoningMessageEndEvent
+        updates.Count(u => ToAGUIEvent<ReasoningMessageEndEvent>(u) is not null).Should().BeGreaterThan(0, "should have ReasoningMessageEndEvent");
+
+        // Should have ReasoningEndEvent
+        updates.Count(u => ToAGUIEvent<ReasoningEndEvent>(u) is not null).Should().BeGreaterThan(0, "should have ReasoningEndEvent");
+
+        // Should also have regular text content after reasoning
+        var textContentUpdates = updates.Where(u => u.Contents.OfType<TextContent>().Any()).ToList();
+        textContentUpdates.Should().NotBeEmpty("should have regular TextContent after reasoning");
+    }
+
     private async Task SetupTestServerAsync(FakeRawEventAgent fakeAgent)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
@@ -417,6 +470,42 @@ internal sealed class FakeRawEventAgent : AIAgent
                     RunId = "custom-run-456"
                 },
                 Contents = []
+            };
+        }
+        else if (userText?.Contains("emit reasoning content", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            // Emit TextReasoningContent which should be converted to REASONING_* events by the server
+            // and then back to TextReasoningContent on the client side
+            string messageId = Guid.NewGuid().ToString("N");
+
+            // Emit reasoning content (like a thinking model would)
+            yield return new AgentResponseUpdate
+            {
+                MessageId = messageId,
+                Role = ChatRole.Assistant,
+                Contents = [new TextReasoningContent("Let me think about this problem. ")]
+            };
+
+            yield return new AgentResponseUpdate
+            {
+                MessageId = messageId,
+                Role = ChatRole.Assistant,
+                Contents = [new TextReasoningContent("The user wants to test reasoning events. ")]
+            };
+
+            yield return new AgentResponseUpdate
+            {
+                MessageId = messageId,
+                Role = ChatRole.Assistant,
+                Contents = [new TextReasoningContent("I should provide a thoughtful response.")]
+            };
+
+            // Now emit regular text content (the actual response after thinking)
+            yield return new AgentResponseUpdate
+            {
+                MessageId = messageId,
+                Role = ChatRole.Assistant,
+                Contents = [new TextContent("Here is my response after reasoning.")]
             };
         }
         else
