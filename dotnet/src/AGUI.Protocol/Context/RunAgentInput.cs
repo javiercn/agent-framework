@@ -24,6 +24,17 @@ public sealed class RunAgentInput
     public string RunId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the parent run identifier for branching/time travel.
+    /// </summary>
+    /// <remarks>
+    /// If present, refers to a prior run within the same thread, creating a git-like append-only log.
+    /// This enables branching conversations where a new run can be created from any point in history.
+    /// </remarks>
+    [JsonPropertyName("parentRunId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParentRunId { get; set; }
+
+    /// <summary>
     /// Gets or sets the agent state.
     /// </summary>
     [JsonPropertyName("state")]

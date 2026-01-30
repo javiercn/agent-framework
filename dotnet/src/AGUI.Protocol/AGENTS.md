@@ -906,6 +906,62 @@ Compaction rules:
 - Tool calls: Collapse start/args/end into compact record
 - State: Merge consecutive deltas into final snapshot
 
+### Serialization
+
+AG-UI serialization has **two distinct dimensions** that work together:
+
+#### 1. Client-Side Event Stream Serialization
+
+Serialize the stream of `BaseEvent` objects for history persistence:
+
+```csharp
+// Capture events during streaming
+List<BaseEvent> allEvents = [];
+await foreach (var update in agent.RunStreamingAsync(messages, session))
+{
+    if (update.RawRepresentation is BaseEvent evt)
+        allEvents.Add(evt);
+}
+
+// Serialize events to JSON for storage
+string json = JsonSerializer.Serialize(
+    allEvents.ToArray(), 
+    AGUIJsonSerializerContext.Default.Options);
+
+// Deserialize events from stored JSON
+BaseEvent[] restored = JsonSerializer.Deserialize<BaseEvent[]>(
+    json, 
+    AGUIJsonSerializerContext.Default.Options);
+```
+
+#### 2. Server-Side Session Persistence
+
+Use `AgentSessionStore` with `MapAGUI` to persist sessions across requests:
+
+```csharp
+// Server setup with session persistence
+InMemoryAgentSessionStore sessionStore = new();
+app.MapAGUI("/", agent, sessionStore);  // Sessions persisted by threadId
+```
+
+The AG-UI `threadId` maps to the conversation identifier in `AgentSessionStore`.
+
+#### Branching with ParentRunId
+
+`RunStartedEvent` supports branching via `parentRunId`:
+
+```csharp
+new RunStartedEvent 
+{ 
+    ThreadId = "thread_abc", 
+    RunId = "run_002",
+    ParentRunId = "run_001",  // Branch from run_001
+    Input = new RunAgentInput { /* optional: exact input for this run */ }
+}
+```
+
+This creates a git-like append-only log where each run can branch from any previous run.
+
 ### Transport
 
 AG-UI uses Server-Sent Events (SSE) over HTTP for streaming. Events are serialized as JSON:
@@ -937,6 +993,31 @@ var evt = new TextMessageContentEvent
 };
 
 var json = JsonSerializer.Serialize(evt, AGUIJsonSerializerContext.Default.Options);
+```
+
+### Serialize Event Array for History Persistence
+
+```csharp
+using System.Text.Json;
+using AGUI.Protocol;
+
+// Collect events during a conversation
+var events = new BaseEvent[]
+{
+    new RunStartedEvent { ThreadId = "t1", RunId = "r1" },
+    new TextMessageStartEvent { MessageId = "m1", Role = AGUIRoles.Assistant },
+    new TextMessageContentEvent { MessageId = "m1", Delta = "Hello!" },
+    new TextMessageEndEvent { MessageId = "m1" },
+    new RunFinishedEvent { ThreadId = "t1", RunId = "r1" }
+};
+
+// Serialize for storage
+string json = JsonSerializer.Serialize(events, AGUIJsonSerializerContext.Default.Options);
+File.WriteAllText("history.json", json);
+
+// Deserialize from storage
+string loaded = File.ReadAllText("history.json");
+BaseEvent[] restored = JsonSerializer.Deserialize<BaseEvent[]>(loaded, AGUIJsonSerializerContext.Default.Options)!;
 ```
 
 ### Deserialize Events Polymorphically
