@@ -359,7 +359,7 @@ public class EventSerializationTests
         {
             Messages =
             [
-                new AGUIUserMessage { Id = "msg_1", Content = "Hello" },
+                new AGUIUserMessage { Id = "msg_1", Content = [new AGUITextInputContent { Text = "Hello" }] },
                 new AGUIAssistantMessage { Id = "msg_2", Content = "Hi there!" }
             ]
         };

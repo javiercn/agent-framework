@@ -56,11 +56,7 @@ public sealed class AGUIChatMessageExtensionsTests
         // Arrange
         List<AGUIMessage> aguiMessages =
         [
-            new AGUIUserMessage
-            {
-                Id = "msg1",
-                Content = "Hello"
-            }
+            new AGUIUserMessage { Id = "msg1", Content = [new AGUITextInputContent { Text = "Hello" }] }
         ];
 
         // Act
@@ -78,9 +74,9 @@ public sealed class AGUIChatMessageExtensionsTests
         // Arrange
         List<AGUIMessage> aguiMessages =
         [
-            new AGUIUserMessage { Id = "msg1", Content = "First" },
+            new AGUIUserMessage { Id = "msg1", Content = [new AGUITextInputContent { Text = "First" }] },
             new AGUIAssistantMessage { Id = "msg2", Content = "Second" },
-            new AGUIUserMessage { Id = "msg3", Content = "Third" }
+            new AGUIUserMessage { Id = "msg3", Content = [new AGUITextInputContent { Text = "Third" }] }
         ];
 
         // Act
@@ -100,7 +96,7 @@ public sealed class AGUIChatMessageExtensionsTests
         List<AGUIMessage> aguiMessages =
         [
             new AGUISystemMessage { Id = "msg1", Content = "System message" },
-            new AGUIUserMessage { Id = "msg2", Content = "User message" },
+            new AGUIUserMessage { Id = "msg2", Content = [new AGUITextInputContent { Text = "User message" }] },
             new AGUIAssistantMessage { Id = "msg3", Content = "Assistant message" },
             new AGUIDeveloperMessage { Id = "msg4", Content = "Developer message" }
         ];
@@ -146,7 +142,8 @@ public sealed class AGUIChatMessageExtensionsTests
         AGUIMessage message = Assert.Single(aguiMessages);
         Assert.Equal("msg1", message.Id);
         Assert.Equal(AGUIRoles.User, message.Role);
-        Assert.Equal("Hello", ((AGUIUserMessage)message).Content);
+        AGUIInputContent contentItem = Assert.Single(((AGUIUserMessage)message).Content);
+        Assert.Equal("Hello", ((AGUITextInputContent)contentItem).Text);
     }
 
     [Fact]
@@ -165,9 +162,9 @@ public sealed class AGUIChatMessageExtensionsTests
 
         // Assert
         Assert.Equal(3, aguiMessages.Count);
-        Assert.Equal("First", ((AGUIUserMessage)aguiMessages[0]).Content);
+        Assert.Equal("First", ((AGUITextInputContent)((AGUIUserMessage)aguiMessages[0]).Content[0]).Text);
         Assert.Equal("Second", ((AGUIAssistantMessage)aguiMessages[1]).Content);
-        Assert.Equal("Third", ((AGUIUserMessage)aguiMessages[2]).Content);
+        Assert.Equal("Third", ((AGUITextInputContent)((AGUIUserMessage)aguiMessages[2]).Content[0]).Text);
     }
 
     [Fact]

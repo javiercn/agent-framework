@@ -85,13 +85,23 @@ internal static class AGUIChatMessageExtensions
                     break;
                 }
 
+                case AGUIUserMessage userMessage:
+                {
+                    // Handle multimodal content for user messages
+                    var contents = MapInputContentsToAIContents(userMessage.Content);
+                    yield return new ChatMessage(role, contents)
+                    {
+                        MessageId = message.Id
+                    };
+                    break;
+                }
+
                 default:
                 {
                     string content = message switch
                     {
                         AGUIDeveloperMessage dev => dev.Content,
                         AGUISystemMessage sys => sys.Content,
-                        AGUIUserMessage user => user.Content,
                         AGUIAssistantMessage asst => asst.Content,
                         _ => string.Empty
                     };
@@ -104,6 +114,92 @@ internal static class AGUIChatMessageExtensions
                 }
             }
         }
+    }
+
+    private static List<AIContent> MapInputContentsToAIContents(IList<AGUIInputContent> inputContents)
+    {
+        var contents = new List<AIContent>();
+
+        foreach (var inputContent in inputContents)
+        {
+            switch (inputContent)
+            {
+                case AGUITextInputContent textContent:
+                    contents.Add(new TextContent(textContent.Text));
+                    break;
+
+                case AGUIBinaryInputContent binaryContent:
+                    contents.Add(MapBinaryContentToAIContent(binaryContent));
+                    break;
+            }
+        }
+
+        return contents;
+    }
+
+    private static AIContent MapBinaryContentToAIContent(AGUIBinaryInputContent binaryContent)
+    {
+        // Priority: data > url > id
+        if (!string.IsNullOrEmpty(binaryContent.Data))
+        {
+            // Inline base64 data -> DataContent
+            var bytes = Convert.FromBase64String(binaryContent.Data);
+            var dataContent = new DataContent(bytes, binaryContent.MimeType);
+
+            // Store original AG-UI content for reference
+            dataContent.AdditionalProperties ??= [];
+            if (binaryContent.Filename is not null)
+            {
+                dataContent.AdditionalProperties["filename"] = binaryContent.Filename;
+            }
+            if (binaryContent.Id is not null)
+            {
+                dataContent.AdditionalProperties["ag_ui_content_id"] = binaryContent.Id;
+            }
+            dataContent.RawRepresentation = binaryContent;
+
+            return dataContent;
+        }
+        else if (!string.IsNullOrEmpty(binaryContent.Url))
+        {
+            // URL reference -> UriContent
+            var uriContent = new UriContent(new Uri(binaryContent.Url), binaryContent.MimeType);
+
+            uriContent.AdditionalProperties ??= [];
+            if (binaryContent.Filename is not null)
+            {
+                uriContent.AdditionalProperties["filename"] = binaryContent.Filename;
+            }
+            if (binaryContent.Id is not null)
+            {
+                uriContent.AdditionalProperties["ag_ui_content_id"] = binaryContent.Id;
+            }
+            uriContent.RawRepresentation = binaryContent;
+
+            return uriContent;
+        }
+        else if (!string.IsNullOrEmpty(binaryContent.Id))
+        {
+            // ID reference only - use DataContent with special handling
+            // The content needs to be resolved by the agent/model
+            var placeholder = new DataContent(
+                ReadOnlyMemory<byte>.Empty,
+                binaryContent.MimeType);
+
+            placeholder.AdditionalProperties ??= [];
+            placeholder.AdditionalProperties["ag_ui_content_id"] = binaryContent.Id;
+            placeholder.AdditionalProperties["ag_ui_requires_resolution"] = true;
+            if (binaryContent.Filename is not null)
+            {
+                placeholder.AdditionalProperties["filename"] = binaryContent.Filename;
+            }
+            placeholder.RawRepresentation = binaryContent;
+
+            return placeholder;
+        }
+
+        throw new InvalidOperationException(
+            "BinaryInputContent must have at least one of 'data', 'url', or 'id' specified.");
     }
 
     public static IEnumerable<AGUIMessage> AsAGUIMessages(
@@ -128,17 +224,85 @@ internal static class AGUIChatMessageExtensions
                     yield return assistantMessage;
                 }
             }
+            else if (message.Role == ChatRole.User)
+            {
+                yield return MapUserMessage(message);
+            }
             else
             {
                 yield return message.Role.Value switch
                 {
                     AGUIRoles.Developer => new AGUIDeveloperMessage { Id = message.MessageId, Content = message.Text ?? string.Empty },
                     AGUIRoles.System => new AGUISystemMessage { Id = message.MessageId, Content = message.Text ?? string.Empty },
-                    AGUIRoles.User => new AGUIUserMessage { Id = message.MessageId, Content = message.Text ?? string.Empty },
                     _ => throw new InvalidOperationException($"Unknown role: {message.Role.Value}")
                 };
             }
         }
+    }
+
+    private static AGUIUserMessage MapUserMessage(ChatMessage message)
+    {
+        var userMessage = new AGUIUserMessage { Id = message.MessageId };
+        var contents = new List<AGUIInputContent>();
+
+        foreach (var content in message.Contents)
+        {
+            switch (content)
+            {
+                case TextContent textContent:
+                    contents.Add(new AGUITextInputContent
+                    {
+                        Text = textContent.Text ?? string.Empty
+                    });
+                    break;
+
+                case DataContent dataContent:
+                    contents.Add(MapDataContentToBinaryInput(dataContent));
+                    break;
+
+                case UriContent uriContent:
+                    contents.Add(new AGUIBinaryInputContent
+                    {
+                        MimeType = uriContent.MediaType ?? "application/octet-stream",
+                        Url = uriContent.Uri.ToString(),
+                        Filename = uriContent.AdditionalProperties?.TryGetValue("filename", out var fn) == true ? fn as string : null,
+                        Id = uriContent.AdditionalProperties?.TryGetValue("ag_ui_content_id", out var id) == true ? id as string : null
+                    });
+                    break;
+            }
+        }
+
+        // If no contents from the Contents collection, fall back to Text
+        if (contents.Count == 0 && !string.IsNullOrEmpty(message.Text))
+        {
+            contents.Add(new AGUITextInputContent { Text = message.Text });
+        }
+
+        userMessage.Content = contents;
+        return userMessage;
+    }
+
+    private static AGUIBinaryInputContent MapDataContentToBinaryInput(DataContent dataContent)
+    {
+        var binary = new AGUIBinaryInputContent
+        {
+            MimeType = dataContent.MediaType ?? "application/octet-stream",
+            Filename = dataContent.AdditionalProperties?.TryGetValue("filename", out var fn) == true ? fn as string : null,
+            Id = dataContent.AdditionalProperties?.TryGetValue("ag_ui_content_id", out var id) == true ? id as string : null
+        };
+
+        // Check if we have inline data
+        if (!dataContent.Data.IsEmpty)
+        {
+            // Has byte data - convert to base64
+#if NETSTANDARD2_0 || NET472
+            binary.Data = Convert.ToBase64String(dataContent.Data.ToArray());
+#else
+            binary.Data = Convert.ToBase64String(dataContent.Data.Span);
+#endif
+        }
+
+        return binary;
     }
 
     private static AGUIAssistantMessage? MapAssistantMessage(JsonSerializerOptions jsonSerializerOptions, ChatMessage message)

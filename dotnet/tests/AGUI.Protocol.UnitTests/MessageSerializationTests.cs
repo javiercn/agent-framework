@@ -17,19 +17,21 @@ public class MessageSerializationTests
         var msg = new AGUIUserMessage
         {
             Id = "msg_123",
-            Content = "Hello!",
+            Content = [new AGUITextInputContent { Text = "Hello!" }],
             Name = "John"
         };
 
         // Act
-        var json = JsonSerializer.Serialize(msg, s_options);
+        var json = JsonSerializer.Serialize<AGUIMessage>(msg, s_options);
+        System.Console.WriteLine("DEBUG JSON: " + json);
         var deserialized = JsonSerializer.Deserialize<AGUIMessage>(json, s_options);
 
         // Assert
         deserialized.Should().BeOfType<AGUIUserMessage>();
         var result = (AGUIUserMessage)deserialized!;
         result.Role.Should().Be(AGUIRoles.User);
-        result.Content.Should().Be("Hello!");
+        result.Content.Should().ContainSingle();
+        ((AGUITextInputContent)result.Content[0]).Text.Should().Be("Hello!");
         result.Name.Should().Be("John");
     }
 
@@ -134,11 +136,7 @@ public class MessageSerializationTests
     public void AGUIMessage_NullId_OmittedFromJson()
     {
         // Arrange
-        var msg = new AGUIUserMessage
-        {
-            Id = null,
-            Content = "Hello!"
-        };
+        var msg = new AGUIUserMessage { Content = [new AGUITextInputContent { Text = "Hello!" }] };
 
         // Act
         var json = JsonSerializer.Serialize(msg, s_options);

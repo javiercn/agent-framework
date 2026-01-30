@@ -24,6 +24,13 @@ namespace AGUI.Protocol;
 [JsonSerializable(typeof(AGUIUserMessage))]
 [JsonSerializable(typeof(AGUIAssistantMessage))]
 [JsonSerializable(typeof(AGUIToolMessage))]
+// Multimodal input content types
+[JsonSerializable(typeof(AGUIInputContent))]
+[JsonSerializable(typeof(AGUIInputContent[]))]
+[JsonSerializable(typeof(List<AGUIInputContent>))]
+[JsonSerializable(typeof(IList<AGUIInputContent>))]
+[JsonSerializable(typeof(AGUITextInputContent))]
+[JsonSerializable(typeof(AGUIBinaryInputContent))]
 // Tool types
 [JsonSerializable(typeof(AGUITool))]
 [JsonSerializable(typeof(AGUIToolCall))]
