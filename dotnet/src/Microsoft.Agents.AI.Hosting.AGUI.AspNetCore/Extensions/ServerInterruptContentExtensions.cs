@@ -59,7 +59,7 @@ internal static class ServerInterruptContentExtensions
             }
 
             var functionCall = new FunctionCallContent(
-                interrupt.Id ?? Guid.NewGuid().ToString("N"),
+                interrupt.Id ?? ServerAGUIIdGenerator.NewInterruptId(),
                 functionName,
                 arguments);
 
@@ -70,7 +70,7 @@ internal static class ServerInterruptContentExtensions
         }
 
         // Otherwise, treat as a generic user input request using our custom derived type
-        return new ServerAGUIUserInputRequestContent(interrupt.Id ?? Guid.NewGuid().ToString("N"))
+        return new ServerAGUIUserInputRequestContent(interrupt.Id ?? ServerAGUIIdGenerator.NewInterruptId())
         {
             RawRepresentation = interrupt
         };

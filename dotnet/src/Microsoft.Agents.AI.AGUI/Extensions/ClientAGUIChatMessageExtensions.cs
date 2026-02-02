@@ -18,7 +18,7 @@ internal static class ClientAGUIChatMessageExtensions
     {
         foreach (var message in chatMessages)
         {
-            message.MessageId ??= Guid.NewGuid().ToString("N");
+            message.MessageId ??= ClientAGUIIdGenerator.NewMessageId();
             if (message.Role == ChatRole.Tool)
             {
                 foreach (var toolMessage in MapToolMessages(jsonSerializerOptions, message))

@@ -168,7 +168,7 @@ internal static class ServerChatResponseUpdateAGUIExtensions
                         // Emit reasoning events for reasoning content (new REASONING_* events)
                         if (reasoningSessionId is null)
                         {
-                            reasoningSessionId = Guid.NewGuid().ToString("N");
+                            reasoningSessionId = ServerAGUIIdGenerator.NewReasoningSessionId();
                             yield return new ReasoningStartEvent
                             {
                                 MessageId = reasoningSessionId
@@ -176,7 +176,7 @@ internal static class ServerChatResponseUpdateAGUIExtensions
                         }
 
                         // Start a new reasoning message if needed
-                        string reasoningMsgId = chatResponse.MessageId ?? Guid.NewGuid().ToString("N");
+                        string reasoningMsgId = chatResponse.MessageId ?? ServerAGUIIdGenerator.NewReasoningMessageId();
                         if (currentReasoningMessageId != reasoningMsgId)
                         {
                             // End previous reasoning message if any
