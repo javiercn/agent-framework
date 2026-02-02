@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
 using AGUI.Protocol;
+using Microsoft.Agents.AI.AGUI.Extensions;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Microsoft.Agents.AI.AGUI.UnitTests;
@@ -32,7 +34,7 @@ public sealed class WeatherResponse
 internal sealed partial class CustomTypesContext : JsonSerializerContext;
 
 /// <summary>
-/// Unit tests for the <see cref="AGUIChatMessageExtensions"/> class.
+/// Unit tests for the <see cref="ServerAGUIChatMessageExtensions"/> and <see cref="ClientAGUIChatMessageExtensions"/> classes.
 /// </summary>
 public sealed class AGUIChatMessageExtensionsTests
 {
@@ -192,7 +194,7 @@ public sealed class AGUIChatMessageExtensionsTests
     public void MapChatRole_WithValidRole_ReturnsCorrectChatRole(string aguiRole, string expectedRoleValue)
     {
         // Arrange & Act
-        ChatRole role = AGUIChatMessageExtensions.MapChatRole(aguiRole);
+        ChatRole role = ServerAGUIChatMessageExtensions.MapChatRole(aguiRole);
 
         // Assert
         Assert.Equal(expectedRoleValue, role.Value);
@@ -202,7 +204,7 @@ public sealed class AGUIChatMessageExtensionsTests
     public void MapChatRole_WithUnknownRole_ThrowsInvalidOperationException()
     {
         // Arrange & Act & Assert
-        Assert.Throws<InvalidOperationException>(() => AGUIChatMessageExtensions.MapChatRole("unknown"));
+        Assert.Throws<InvalidOperationException>(() => ServerAGUIChatMessageExtensions.MapChatRole("unknown"));
     }
 
     [Fact]
@@ -358,7 +360,7 @@ public sealed class AGUIChatMessageExtensionsTests
     public void MapChatRole_WithToolRole_ReturnsToolChatRole()
     {
         // Arrange & Act
-        ChatRole role = AGUIChatMessageExtensions.MapChatRole(AGUIRoles.Tool);
+        ChatRole role = ServerAGUIChatMessageExtensions.MapChatRole(AGUIRoles.Tool);
 
         // Assert
         Assert.Equal(ChatRole.Tool, role);

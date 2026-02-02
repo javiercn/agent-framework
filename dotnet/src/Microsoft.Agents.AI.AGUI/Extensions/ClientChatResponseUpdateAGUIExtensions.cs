@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -15,13 +14,13 @@ using Microsoft.Extensions.AI;
 
 #pragma warning disable MEAI001 // Experimental API - FunctionApprovalRequestContent, UserInputRequestContent
 
-namespace Microsoft.Agents.AI.AGUI;
+namespace Microsoft.Agents.AI.AGUI.Extensions;
 
-internal static class ChatResponseUpdateAGUIExtensions
+/// <summary>
+/// Extensions for converting AG-UI events to ChatResponseUpdate (client-side: events → MEAI).
+/// </summary>
+internal static class ClientChatResponseUpdateAGUIExtensions
 {
-    private static readonly MediaTypeHeaderValue? s_jsonPatchMediaType = new("application/json-patch+json");
-    private static readonly MediaTypeHeaderValue? s_json = new("application/json");
-
     public static async IAsyncEnumerable<ChatResponseUpdate> AsChatResponseUpdatesAsync(
         this IAsyncEnumerable<BaseEvent> events,
         JsonSerializerOptions jsonSerializerOptions,
@@ -103,7 +102,7 @@ internal static class ChatResponseUpdateAGUIExtensions
                     };
                     break;
 
-                // Reasoning events (new spec) - emit with TextReasoningContent or as lifecycle events
+                // Reasoning events
                 case ReasoningStartEvent reasoningStart:
                     yield return new ChatResponseUpdate(ChatRole.Assistant, [])
                     {
@@ -155,7 +154,6 @@ internal static class ChatResponseUpdateAGUIExtensions
                     };
                     break;
                 case ReasoningMessageChunkEvent reasoningMessageChunk:
-                    // Convenience event - emit as TextReasoningContent if delta is present
                     if (!string.IsNullOrEmpty(reasoningMessageChunk.Delta))
                     {
                         yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent(reasoningMessageChunk.Delta)])
@@ -189,7 +187,6 @@ internal static class ChatResponseUpdateAGUIExtensions
         string? responseId,
         JsonSerializerOptions jsonSerializerOptions)
     {
-        // Serialize JsonElement directly to UTF-8 bytes using AOT-safe overload
         byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(
             stateSnapshot.Snapshot!.Value,
             jsonSerializerOptions.GetTypeInfo(typeof(JsonElement)));
@@ -214,7 +211,6 @@ internal static class ChatResponseUpdateAGUIExtensions
         string? responseId,
         JsonSerializerOptions jsonSerializerOptions)
     {
-        // Serialize JsonElement directly to UTF-8 bytes using AOT-safe overload
         byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(
             stateDelta.Delta!.Value,
             jsonSerializerOptions.GetTypeInfo(typeof(JsonElement)));
@@ -253,7 +249,7 @@ internal static class ChatResponseUpdateAGUIExtensions
                 throw new InvalidOperationException("Received TextMessageStartEvent while another message is being processed.");
             }
 
-            this._currentRole = AGUIChatMessageExtensions.MapChatRole(textStart.Role);
+            this._currentRole = ClientAGUIChatMessageExtensions.MapChatRole(textStart.Role);
             this._currentMessageId = textStart.MessageId;
         }
 
@@ -306,14 +302,13 @@ internal static class ChatResponseUpdateAGUIExtensions
             throw new InvalidOperationException($"The run finished event didn't match the run started event run ID: {runFinished.RunId}, {responseId}");
         }
 
-        // Check if this is an interrupt (explicit outcome or presence of interrupt payload)
+        // Check if this is an interrupt
         var isInterrupt = string.Equals(runFinished.Outcome, RunFinishedOutcome.Interrupt, StringComparison.OrdinalIgnoreCase)
             || (runFinished.Interrupt is not null && runFinished.Outcome is null);
 
         if (isInterrupt && runFinished.Interrupt is { } interrupt)
         {
-            // Convert interrupt to appropriate MEAI content type
-            var interruptContent = InterruptContentExtensions.FromAGUIInterrupt(interrupt);
+            var interruptContent = ClientInterruptContentExtensions.FromAGUIInterrupt(interrupt);
             return new ChatResponseUpdate(
                 ChatRole.Assistant, [interruptContent])
             {
@@ -441,330 +436,5 @@ internal static class ChatResponseUpdateAGUIExtensions
         }
 
         return null;
-    }
-
-    public static async IAsyncEnumerable<BaseEvent> AsAGUIEventStreamAsync(
-        this IAsyncEnumerable<ChatResponseUpdate> updates,
-        string threadId,
-        string runId,
-        JsonSerializerOptions jsonSerializerOptions,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        bool runStartedEmitted = false;
-        bool runFinishedEmitted = false;
-        string? currentMessageId = null;
-        string? currentReasoningMessageId = null;
-        string? reasoningSessionId = null;
-        await foreach (var chatResponse in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
-        {
-            // Check if RawRepresentation contains an AG-UI event - emit it directly.
-            // The BaseEvent may be nested inside an AgentResponseUpdate's RawRepresentation
-            // (when AsChatResponseUpdate wraps an AgentResponseUpdate that had a BaseEvent).
-            if (ExtractBaseEvent(chatResponse.RawRepresentation) is BaseEvent rawEvent)
-            {
-                // Track lifecycle events to avoid duplicate emissions
-                if (rawEvent is RunStartedEvent)
-                {
-                    runStartedEmitted = true;
-                }
-                else if (rawEvent is RunFinishedEvent)
-                {
-                    runFinishedEmitted = true;
-                }
-                else if (!runStartedEmitted)
-                {
-                    // Emit RunStartedEvent before any other event if not explicitly provided
-                    runStartedEmitted = true;
-                    yield return new RunStartedEvent
-                    {
-                        ThreadId = threadId,
-                        RunId = runId
-                    };
-                }
-
-                yield return rawEvent;
-                continue;
-            }
-
-            // Emit RunStartedEvent automatically if not explicitly provided
-            if (!runStartedEmitted)
-            {
-                runStartedEmitted = true;
-                yield return new RunStartedEvent
-                {
-                    ThreadId = threadId,
-                    RunId = runId
-                };
-            }
-
-            if (chatResponse is { Contents.Count: > 0 } &&
-                chatResponse.Contents[0] is TextContent &&
-                !string.Equals(currentMessageId, chatResponse.MessageId, StringComparison.Ordinal))
-            {
-                // End reasoning events if we're transitioning to regular text content
-                if (reasoningSessionId is not null)
-                {
-                    if (currentReasoningMessageId is not null)
-                    {
-                        yield return new ReasoningMessageEndEvent
-                        {
-                            MessageId = currentReasoningMessageId
-                        };
-                        currentReasoningMessageId = null;
-                    }
-                    yield return new ReasoningEndEvent
-                    {
-                        MessageId = reasoningSessionId
-                    };
-                    reasoningSessionId = null;
-                }
-
-                // End the previous message if there was one
-                if (currentMessageId is not null)
-                {
-                    yield return new TextMessageEndEvent
-                    {
-                        MessageId = currentMessageId
-                    };
-                }
-
-                // Start the new message
-                yield return new TextMessageStartEvent
-                {
-                    MessageId = chatResponse.MessageId!,
-                    Role = chatResponse.Role!.Value.Value
-                };
-
-                currentMessageId = chatResponse.MessageId;
-            }
-
-            // Emit text content if present
-            if (chatResponse is { Contents.Count: > 0 } && chatResponse.Contents[0] is TextContent textContent &&
-                !string.IsNullOrEmpty(textContent.Text))
-            {
-                yield return new TextMessageContentEvent
-                {
-                    MessageId = chatResponse.MessageId!,
-                    Delta = textContent.Text
-                };
-            }
-
-            // Emit tool call events and tool result events
-            if (chatResponse is { Contents.Count: > 0 })
-            {
-                foreach (var content in chatResponse.Contents)
-                {
-                    if (content is FunctionCallContent functionCallContent)
-                    {
-                        yield return new ToolCallStartEvent
-                        {
-                            ToolCallId = functionCallContent.CallId,
-                            ToolCallName = functionCallContent.Name,
-                            ParentMessageId = chatResponse.MessageId
-                        };
-
-                        yield return new ToolCallArgsEvent
-                        {
-                            ToolCallId = functionCallContent.CallId,
-                            Delta = JsonSerializer.Serialize(
-                                functionCallContent.Arguments,
-                                jsonSerializerOptions.GetTypeInfo(typeof(IDictionary<string, object?>)))
-                        };
-
-                        yield return new ToolCallEndEvent
-                        {
-                            ToolCallId = functionCallContent.CallId
-                        };
-                    }
-                    else if (content is FunctionResultContent functionResultContent)
-                    {
-                        yield return new ToolCallResultEvent
-                        {
-                            MessageId = chatResponse.MessageId,
-                            ToolCallId = functionResultContent.CallId,
-                            Content = SerializeResultContent(functionResultContent, jsonSerializerOptions) ?? "",
-                            Role = AGUIRoles.Tool
-                        };
-                    }
-                    else if (content is TextReasoningContent reasoningContent)
-                    {
-                        // Emit reasoning events for reasoning content (new REASONING_* events)
-                        if (reasoningSessionId is null)
-                        {
-                            reasoningSessionId = Guid.NewGuid().ToString("N");
-                            yield return new ReasoningStartEvent
-                            {
-                                MessageId = reasoningSessionId
-                            };
-                        }
-
-                        // Start a new reasoning message if needed
-                        string reasoningMsgId = chatResponse.MessageId ?? Guid.NewGuid().ToString("N");
-                        if (currentReasoningMessageId != reasoningMsgId)
-                        {
-                            // End previous reasoning message if any
-                            if (currentReasoningMessageId is not null)
-                            {
-                                yield return new ReasoningMessageEndEvent
-                                {
-                                    MessageId = currentReasoningMessageId
-                                };
-                            }
-
-                            currentReasoningMessageId = reasoningMsgId;
-                            yield return new ReasoningMessageStartEvent
-                            {
-                                MessageId = currentReasoningMessageId,
-                                Role = AGUIRoles.Assistant
-                            };
-                        }
-
-                        // Emit reasoning content
-                        if (!string.IsNullOrEmpty(reasoningContent.Text))
-                        {
-                            yield return new ReasoningMessageContentEvent
-                            {
-                                MessageId = currentReasoningMessageId,
-                                Delta = reasoningContent.Text
-                            };
-                        }
-                    }
-                    else if (content is DataContent dataContent)
-                    {
-                        if (MediaTypeHeaderValue.TryParse(dataContent.MediaType, out var mediaType) && mediaType.Equals(s_json))
-                        {
-                            // State snapshot event
-                            yield return new StateSnapshotEvent
-                            {
-#if !NET
-                                Snapshot = (JsonElement?)JsonSerializer.Deserialize(
-                                dataContent.Data.ToArray(),
-                                jsonSerializerOptions.GetTypeInfo(typeof(JsonElement)))
-#else
-                                Snapshot = (JsonElement?)JsonSerializer.Deserialize(
-                                dataContent.Data.Span,
-                                jsonSerializerOptions.GetTypeInfo(typeof(JsonElement)))
-#endif
-                            };
-                        }
-                        else if (mediaType is { } && mediaType.Equals(s_jsonPatchMediaType))
-                        {
-                            // State snapshot patch event must be a valid JSON patch,
-                            // but its not up to us to validate that here.
-                            yield return new StateDeltaEvent
-                            {
-#if !NET
-                                Delta = (JsonElement?)JsonSerializer.Deserialize(
-                                dataContent.Data.ToArray(),
-                                jsonSerializerOptions.GetTypeInfo(typeof(JsonElement)))
-#else
-                                Delta = (JsonElement?)JsonSerializer.Deserialize(
-                                dataContent.Data.Span,
-                                jsonSerializerOptions.GetTypeInfo(typeof(JsonElement)))
-#endif
-                            };
-                        }
-                        else
-                        {
-                            // Text content event
-                            yield return new TextMessageContentEvent
-                            {
-                                MessageId = chatResponse.MessageId!,
-#if !NET
-                                Delta = Encoding.UTF8.GetString(dataContent.Data.ToArray())
-#else
-                                Delta = Encoding.UTF8.GetString(dataContent.Data.Span)
-#endif
-                            };
-                        }
-                    }
-                    else if (content is FunctionApprovalRequestContent approvalRequest)
-                    {
-                        // Emit RunFinishedEvent with interrupt for function approval
-                        runFinishedEmitted = true;
-                        yield return new RunFinishedEvent
-                        {
-                            ThreadId = threadId,
-                            RunId = runId,
-                            Outcome = RunFinishedOutcome.Interrupt,
-                            Interrupt = InterruptContentExtensions.ToAGUIInterrupt(approvalRequest, jsonSerializerOptions)
-                        };
-                    }
-                    else if (content is UserInputRequestContent userInputRequest && content is not FunctionApprovalRequestContent)
-                    {
-                        // Emit RunFinishedEvent with interrupt for user input request
-                        runFinishedEmitted = true;
-                        yield return new RunFinishedEvent
-                        {
-                            ThreadId = threadId,
-                            RunId = runId,
-                            Outcome = RunFinishedOutcome.Interrupt,
-                            Interrupt = InterruptContentExtensions.ToAGUIInterrupt(userInputRequest)
-                        };
-                    }
-                }
-            }
-        }
-
-        // End any remaining reasoning events
-        if (reasoningSessionId is not null)
-        {
-            if (currentReasoningMessageId is not null)
-            {
-                yield return new ReasoningMessageEndEvent
-                {
-                    MessageId = currentReasoningMessageId
-                };
-            }
-            yield return new ReasoningEndEvent
-            {
-                MessageId = reasoningSessionId
-            };
-        }
-
-        // End the last message if there was one
-        if (currentMessageId is not null)
-        {
-            yield return new TextMessageEndEvent
-            {
-                MessageId = currentMessageId
-            };
-        }
-
-        // Emit RunFinishedEvent automatically if not explicitly provided
-        if (!runFinishedEmitted)
-        {
-            yield return new RunFinishedEvent
-            {
-                ThreadId = threadId,
-                RunId = runId,
-            };
-        }
-    }
-
-    private static string? SerializeResultContent(FunctionResultContent functionResultContent, JsonSerializerOptions options)
-    {
-        return functionResultContent.Result switch
-        {
-            null => null,
-            string str => str,
-            JsonElement jsonElement => jsonElement.GetRawText(),
-            _ => JsonSerializer.Serialize(functionResultContent.Result, options.GetTypeInfo(functionResultContent.Result.GetType())),
-        };
-    }
-
-    /// <summary>
-    /// Recursively extracts a BaseEvent from a RawRepresentation chain.
-    /// The BaseEvent may be nested inside an AgentResponseUpdate that was wrapped
-    /// by AsChatResponseUpdate when the original AgentResponseUpdate had RawRepresentation = BaseEvent.
-    /// </summary>
-    private static BaseEvent? ExtractBaseEvent(object? rawRepresentation)
-    {
-        return rawRepresentation switch
-        {
-            BaseEvent baseEvent => baseEvent,
-            AgentResponseUpdate agentUpdate => ExtractBaseEvent(agentUpdate.RawRepresentation),
-            _ => null
-        };
     }
 }

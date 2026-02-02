@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using AGUI.Protocol;
+using Microsoft.Agents.AI.AGUI.Extensions;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Microsoft.Agents.AI.AGUI.UnitTests;

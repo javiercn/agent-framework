@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using AGUI.Protocol;
-using Microsoft.Agents.AI.AGUI;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -54,7 +54,7 @@ public static class AGUIEndpointRouteBuilderExtensions
             if (input.Resume is { } resume)
             {
                 // Convert the resume to appropriate MEAI response content and add to messages
-                var resumeContent = InterruptContentExtensions.FromAGUIResume(resume);
+                var resumeContent = ServerInterruptContentExtensions.FromAGUIResume(resume);
                 messages.Add(new ChatMessage(ChatRole.User, [resumeContent]));
             }
 
@@ -139,7 +139,7 @@ public static class AGUIEndpointRouteBuilderExtensions
             if (input.Resume is { } resume)
             {
                 // Convert the resume to appropriate MEAI response content and add to messages
-                var resumeContent = InterruptContentExtensions.FromAGUIResume(resume);
+                var resumeContent = ServerInterruptContentExtensions.FromAGUIResume(resume);
                 messages.Add(new ChatMessage(ChatRole.User, [resumeContent]));
             }
 

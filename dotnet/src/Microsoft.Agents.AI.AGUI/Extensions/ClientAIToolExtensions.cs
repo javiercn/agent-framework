@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using AGUI.Protocol;
 using Microsoft.Extensions.AI;
 
-namespace Microsoft.Agents.AI.AGUI;
+namespace Microsoft.Agents.AI.AGUI.Extensions;
 
-internal static class AIToolExtensions
+internal static class ClientAIToolExtensions
 {
     public static IEnumerable<AGUITool> AsAGUITools(this IEnumerable<AITool> tools)
     {
@@ -29,25 +29,6 @@ internal static class AIToolExtensions
                     Parameters = function.JsonSchema
                 };
             }
-        }
-    }
-
-    public static IEnumerable<AITool> AsAITools(this IEnumerable<AGUITool> tools)
-    {
-        if (tools is null)
-        {
-            yield break;
-        }
-
-        foreach (var tool in tools)
-        {
-            // Create a function declaration from the AG-UI tool definition
-            // Note: These are declaration-only and cannot be invoked, as the actual
-            // implementation exists on the client side
-            yield return AIFunctionFactory.CreateDeclaration(
-                name: tool.Name,
-                description: tool.Description,
-                jsonSchema: tool.Parameters);
         }
     }
 }

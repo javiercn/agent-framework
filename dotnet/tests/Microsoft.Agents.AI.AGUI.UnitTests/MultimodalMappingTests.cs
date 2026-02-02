@@ -4,13 +4,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AGUI.Protocol;
+using Microsoft.Agents.AI.AGUI.Extensions;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Microsoft.Agents.AI.AGUI.UnitTests;
 
 /// <summary>
 /// Unit tests for multimodal content mapping between AG-UI and M.E.AI types.
-/// Tests the bidirectional conversion in <see cref="AGUIChatMessageExtensions"/>.
+/// Tests the bidirectional conversion in <see cref="ServerAGUIChatMessageExtensions"/> and <see cref="ClientAGUIChatMessageExtensions"/>.
 /// </summary>
 public sealed class MultimodalMappingTests
 {

@@ -2,19 +2,38 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using AGUI.Protocol;
 using Microsoft.Extensions.AI;
 
 #pragma warning disable MEAI001 // Experimental API - FunctionApprovalRequestContent, UserInputRequestContent
 
-namespace Microsoft.Agents.AI.AGUI;
+namespace Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
+
+/// <summary>
+/// AG-UI specific user input request content that can be instantiated directly.
+/// </summary>
+internal sealed class ServerAGUIUserInputRequestContent : UserInputRequestContent
+{
+    public ServerAGUIUserInputRequestContent(string id) : base(id)
+    {
+    }
+}
+
+/// <summary>
+/// AG-UI specific user input response content that can be instantiated directly.
+/// </summary>
+internal sealed class ServerAGUIUserInputResponseContent : UserInputResponseContent
+{
+    public ServerAGUIUserInputResponseContent(string id) : base(id)
+    {
+    }
+}
 
 /// <summary>
 /// Extension methods for converting between AG-UI interrupt types and MEAI content types.
 /// </summary>
-internal static class InterruptContentExtensions
+internal static class ServerInterruptContentExtensions
 {
     private const string FunctionNameProperty = "functionName";
     private const string FunctionArgumentsProperty = "functionArguments";
@@ -22,11 +41,6 @@ internal static class InterruptContentExtensions
     /// <summary>
     /// Converts an <see cref="AGUIInterrupt"/> to the appropriate MEAI content type.
     /// </summary>
-    /// <param name="interrupt">The AG-UI interrupt to convert.</param>
-    /// <returns>
-    /// A <see cref="FunctionApprovalRequestContent"/> if the interrupt payload contains function details,
-    /// otherwise a <see cref="AGUIUserInputRequestContent"/> with the interrupt stored in RawRepresentation.
-    /// </returns>
     public static AIContent FromAGUIInterrupt(AGUIInterrupt interrupt)
     {
         // Check if this is a function approval interrupt by looking for functionName in payload
@@ -56,7 +70,7 @@ internal static class InterruptContentExtensions
         }
 
         // Otherwise, treat as a generic user input request using our custom derived type
-        return new AGUIUserInputRequestContent(interrupt.Id ?? Guid.NewGuid().ToString("N"))
+        return new ServerAGUIUserInputRequestContent(interrupt.Id ?? Guid.NewGuid().ToString("N"))
         {
             RawRepresentation = interrupt
         };
@@ -65,9 +79,6 @@ internal static class InterruptContentExtensions
     /// <summary>
     /// Converts a <see cref="FunctionApprovalRequestContent"/> to an <see cref="AGUIInterrupt"/>.
     /// </summary>
-    /// <param name="approvalRequest">The function approval request to convert.</param>
-    /// <param name="jsonSerializerOptions">The JSON serializer options to use.</param>
-    /// <returns>An AG-UI interrupt with function details in the payload.</returns>
     public static AGUIInterrupt ToAGUIInterrupt(
         FunctionApprovalRequestContent approvalRequest,
         JsonSerializerOptions jsonSerializerOptions)
@@ -93,8 +104,6 @@ internal static class InterruptContentExtensions
     /// <summary>
     /// Converts a <see cref="UserInputRequestContent"/> to an <see cref="AGUIInterrupt"/>.
     /// </summary>
-    /// <param name="inputRequest">The user input request to convert.</param>
-    /// <returns>An AG-UI interrupt with the request's raw representation or a default payload.</returns>
     public static AGUIInterrupt ToAGUIInterrupt(UserInputRequestContent inputRequest)
     {
         // If the RawRepresentation is already an AGUIInterrupt, return it
@@ -123,9 +132,6 @@ internal static class InterruptContentExtensions
     /// <summary>
     /// Converts a <see cref="FunctionApprovalResponseContent"/> to an <see cref="AGUIResume"/>.
     /// </summary>
-    /// <param name="approvalResponse">The function approval response to convert.</param>
-    /// <param name="jsonSerializerOptions">The JSON serializer options to use.</param>
-    /// <returns>An AG-UI resume with the approval status.</returns>
     public static AGUIResume ToAGUIResume(
         FunctionApprovalResponseContent approvalResponse,
         JsonSerializerOptions jsonSerializerOptions)
@@ -149,9 +155,6 @@ internal static class InterruptContentExtensions
     /// <summary>
     /// Converts a <see cref="UserInputResponseContent"/> to an <see cref="AGUIResume"/>.
     /// </summary>
-    /// <param name="inputResponse">The user input response to convert.</param>
-    /// <param name="jsonSerializerOptions">The JSON serializer options to use.</param>
-    /// <returns>An AG-UI resume with the user's input.</returns>
     public static AGUIResume ToAGUIResume(
         UserInputResponseContent inputResponse,
         JsonSerializerOptions jsonSerializerOptions)
@@ -189,12 +192,6 @@ internal static class InterruptContentExtensions
     /// <summary>
     /// Converts an <see cref="AGUIResume"/> to the appropriate MEAI response content.
     /// </summary>
-    /// <param name="resume">The AG-UI resume to convert.</param>
-    /// <param name="originalInterrupt">The original interrupt this is responding to, if available.</param>
-    /// <returns>
-    /// A <see cref="FunctionApprovalResponseContent"/> if the original was a function approval,
-    /// otherwise a <see cref="AGUIUserInputResponseContent"/>.
-    /// </returns>
     public static AIContent FromAGUIResume(AGUIResume resume, AIContent? originalInterrupt = null)
     {
         // If we have the original interrupt and it was a function approval request
@@ -215,38 +212,10 @@ internal static class InterruptContentExtensions
         }
 
         // Otherwise, treat as user input response using our custom derived type
-        return new AGUIUserInputResponseContent(resume.InterruptId ?? string.Empty)
+        return new ServerAGUIUserInputResponseContent(resume.InterruptId ?? string.Empty)
         {
             RawRepresentation = resume,
             AdditionalProperties = resume.Payload is { } p ? new AdditionalPropertiesDictionary { ["payload"] = p } : null
         };
-    }
-}
-
-/// <summary>
-/// AG-UI specific user input request content that can be instantiated directly.
-/// </summary>
-internal sealed class AGUIUserInputRequestContent : UserInputRequestContent
-{
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AGUIUserInputRequestContent"/> class.
-    /// </summary>
-    /// <param name="id">The ID that uniquely identifies the user input request/response pair.</param>
-    public AGUIUserInputRequestContent(string id) : base(id)
-    {
-    }
-}
-
-/// <summary>
-/// AG-UI specific user input response content that can be instantiated directly.
-/// </summary>
-internal sealed class AGUIUserInputResponseContent : UserInputResponseContent
-{
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AGUIUserInputResponseContent"/> class.
-    /// </summary>
-    /// <param name="id">The ID that uniquely identifies the user input request/response pair.</param>
-    public AGUIUserInputResponseContent(string id) : base(id)
-    {
     }
 }

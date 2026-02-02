@@ -4,12 +4,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using AGUI.Protocol;
+using Microsoft.Agents.AI.AGUI.Extensions;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Microsoft.Agents.AI.AGUI.UnitTests;
 
 /// <summary>
-/// Unit tests for the <see cref="AIToolExtensions"/> class.
+/// Unit tests for the <see cref="ServerAIToolExtensions"/> and <see cref="ClientAIToolExtensions"/> classes.
 /// </summary>
 public sealed class AIToolExtensionsTests
 {

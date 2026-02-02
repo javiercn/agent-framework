@@ -3,7 +3,11 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using AGUI.Protocol;
+using Microsoft.Agents.AI.AGUI.Extensions;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
 using Microsoft.Extensions.AI;
+using ClientInterruptExtensions = Microsoft.Agents.AI.AGUI.Extensions.ClientInterruptContentExtensions;
+using ServerInterruptExtensions = Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions.ServerInterruptContentExtensions;
 
 #pragma warning disable MEAI001 // Experimental API - FunctionApprovalRequestContent, UserInputRequestContent
 
@@ -37,7 +41,7 @@ public sealed class InterruptMappingTests
         };
 
         // Act
-        var content = InterruptContentExtensions.FromAGUIInterrupt(interrupt);
+        var content = ServerInterruptContentExtensions.FromAGUIInterrupt(interrupt);
 
         // Assert
         Assert.IsType<FunctionApprovalRequestContent>(content);
@@ -67,11 +71,11 @@ public sealed class InterruptMappingTests
         };
 
         // Act
-        var content = InterruptContentExtensions.FromAGUIInterrupt(interrupt);
+        var content = ServerInterruptContentExtensions.FromAGUIInterrupt(interrupt);
 
         // Assert
-        Assert.IsType<AGUIUserInputRequestContent>(content);
-        var inputRequest = (AGUIUserInputRequestContent)content;
+        Assert.IsType<ServerAGUIUserInputRequestContent>(content);
+        var inputRequest = (ServerAGUIUserInputRequestContent)content;
         Assert.Equal("input_789", inputRequest.Id);
         Assert.Equal(interrupt, inputRequest.RawRepresentation);
     }
@@ -86,11 +90,11 @@ public sealed class InterruptMappingTests
         };
 
         // Act
-        var content = InterruptContentExtensions.FromAGUIInterrupt(interrupt);
+        var content = ServerInterruptContentExtensions.FromAGUIInterrupt(interrupt);
 
         // Assert
-        Assert.IsType<AGUIUserInputRequestContent>(content);
-        var inputRequest = (AGUIUserInputRequestContent)content;
+        Assert.IsType<ServerAGUIUserInputRequestContent>(content);
+        var inputRequest = (ServerAGUIUserInputRequestContent)content;
         Assert.Equal("interrupt_no_payload", inputRequest.Id);
     }
 
@@ -105,7 +109,7 @@ public sealed class InterruptMappingTests
         var approvalRequest = new FunctionApprovalRequestContent("call_abc", functionCall);
 
         // Act
-        var interrupt = InterruptContentExtensions.ToAGUIInterrupt(approvalRequest, s_options);
+        var interrupt = ServerInterruptContentExtensions.ToAGUIInterrupt(approvalRequest, s_options);
 
         // Assert
         Assert.Equal("call_abc", interrupt.Id);
@@ -123,13 +127,13 @@ public sealed class InterruptMappingTests
             Id = "input_789",
             Payload = JsonDocument.Parse("""{"prompt":"Enter email"}""").RootElement
         };
-        var inputRequest = new AGUIUserInputRequestContent("input_789")
+        var inputRequest = new ServerAGUIUserInputRequestContent("input_789")
         {
             RawRepresentation = existingInterrupt
         };
 
         // Act
-        var interrupt = InterruptContentExtensions.ToAGUIInterrupt(inputRequest);
+        var interrupt = ServerInterruptContentExtensions.ToAGUIInterrupt(inputRequest);
 
         // Assert
         Assert.Same(existingInterrupt, interrupt);
@@ -140,13 +144,13 @@ public sealed class InterruptMappingTests
     {
         // Arrange
         var jsonPayload = JsonDocument.Parse("""{"custom":"data"}""").RootElement;
-        var inputRequest = new AGUIUserInputRequestContent("input_123")
+        var inputRequest = new ServerAGUIUserInputRequestContent("input_123")
         {
             RawRepresentation = jsonPayload
         };
 
         // Act
-        var interrupt = InterruptContentExtensions.ToAGUIInterrupt(inputRequest);
+        var interrupt = ServerInterruptContentExtensions.ToAGUIInterrupt(inputRequest);
 
         // Assert
         Assert.Equal("input_123", interrupt.Id);
@@ -161,7 +165,7 @@ public sealed class InterruptMappingTests
         var approvalResponse = new FunctionApprovalResponseContent("call_abc", true, functionCall);
 
         // Act
-        var resume = InterruptContentExtensions.ToAGUIResume(approvalResponse, s_options);
+        var resume = ServerInterruptContentExtensions.ToAGUIResume(approvalResponse, s_options);
 
         // Assert
         Assert.Equal("call_abc", resume.InterruptId);
@@ -177,7 +181,7 @@ public sealed class InterruptMappingTests
         var approvalResponse = new FunctionApprovalResponseContent("call_abc", false, functionCall);
 
         // Act
-        var resume = InterruptContentExtensions.ToAGUIResume(approvalResponse, s_options);
+        var resume = ServerInterruptContentExtensions.ToAGUIResume(approvalResponse, s_options);
 
         // Assert
         Assert.Equal("call_abc", resume.InterruptId);
@@ -190,13 +194,13 @@ public sealed class InterruptMappingTests
     {
         // Arrange
         var jsonResponse = JsonDocument.Parse("""{"email":"user@example.com","confirmed":true}""").RootElement;
-        var inputResponse = new AGUIUserInputResponseContent("input_789")
+        var inputResponse = new ServerAGUIUserInputResponseContent("input_789")
         {
             RawRepresentation = jsonResponse
         };
 
         // Act
-        var resume = InterruptContentExtensions.ToAGUIResume(inputResponse, s_options);
+        var resume = ServerInterruptContentExtensions.ToAGUIResume(inputResponse, s_options);
 
         // Assert
         Assert.Equal("input_789", resume.InterruptId);
@@ -220,7 +224,7 @@ public sealed class InterruptMappingTests
             new FunctionCallContent("call_abc", "test_func", null));
 
         // Act
-        var content = InterruptContentExtensions.FromAGUIResume(resume, originalInterrupt);
+        var content = ServerInterruptContentExtensions.FromAGUIResume(resume, originalInterrupt);
 
         // Assert
         Assert.IsType<FunctionApprovalResponseContent>(content);
@@ -240,14 +244,14 @@ public sealed class InterruptMappingTests
             InterruptId = "input_789",
             Payload = payload
         };
-        var originalInterrupt = new AGUIUserInputRequestContent("input_789");
+        var originalInterrupt = new ServerAGUIUserInputRequestContent("input_789");
 
         // Act
-        var content = InterruptContentExtensions.FromAGUIResume(resume, originalInterrupt);
+        var content = ServerInterruptContentExtensions.FromAGUIResume(resume, originalInterrupt);
 
         // Assert
-        Assert.IsType<AGUIUserInputResponseContent>(content);
-        var inputResponse = (AGUIUserInputResponseContent)content;
+        Assert.IsType<ServerAGUIUserInputResponseContent>(content);
+        var inputResponse = (ServerAGUIUserInputResponseContent)content;
         Assert.Equal("input_789", inputResponse.Id);
         Assert.Equal(resume, inputResponse.RawRepresentation);
     }
@@ -264,11 +268,11 @@ public sealed class InterruptMappingTests
         };
 
         // Act
-        var content = InterruptContentExtensions.FromAGUIResume(resume);
+        var content = ServerInterruptContentExtensions.FromAGUIResume(resume);
 
         // Assert
-        Assert.IsType<AGUIUserInputResponseContent>(content);
-        var inputResponse = (AGUIUserInputResponseContent)content;
+        Assert.IsType<ServerAGUIUserInputResponseContent>(content);
+        var inputResponse = (ServerAGUIUserInputResponseContent)content;
         Assert.Equal("unknown_123", inputResponse.Id);
     }
 
@@ -280,22 +284,22 @@ public sealed class InterruptMappingTests
         var approvalRequest = new FunctionApprovalRequestContent("call_abc", functionCall);
 
         // Act 1 - Convert to AG-UI interrupt
-        var interrupt = InterruptContentExtensions.ToAGUIInterrupt(approvalRequest, s_options);
+        var interrupt = ServerInterruptContentExtensions.ToAGUIInterrupt(approvalRequest, s_options);
 
         // Assert interrupt structure
         Assert.Equal("call_abc", interrupt.Id);
         Assert.Equal("delete_file", interrupt.Payload!.Value.GetProperty("functionName").GetString());
 
         // Act 2 - Client receives interrupt and converts back to MEAI
-        var receivedContent = InterruptContentExtensions.FromAGUIInterrupt(interrupt);
+        var receivedContent = ServerInterruptContentExtensions.FromAGUIInterrupt(interrupt);
         Assert.IsType<FunctionApprovalRequestContent>(receivedContent);
 
         // Act 3 - User approves, client creates response
         var approvalResponse = new FunctionApprovalResponseContent("call_abc", true, functionCall);
-        var resume = InterruptContentExtensions.ToAGUIResume(approvalResponse, s_options);
+        var resume = ServerInterruptContentExtensions.ToAGUIResume(approvalResponse, s_options);
 
         // Act 4 - Server receives resume and converts back to MEAI
-        var resumeContent = InterruptContentExtensions.FromAGUIResume(resume, receivedContent);
+        var resumeContent = ServerInterruptContentExtensions.FromAGUIResume(resume, receivedContent);
 
         // Assert final state
         Assert.IsType<FunctionApprovalResponseContent>(resumeContent);
@@ -307,30 +311,30 @@ public sealed class InterruptMappingTests
     public void EndToEnd_UserInputInterruptCycle()
     {
         // Arrange - Server creates user input request
-        var inputRequest = new AGUIUserInputRequestContent("input_789")
+        var inputRequest = new ServerAGUIUserInputRequestContent("input_789")
         {
             RawRepresentation = JsonDocument.Parse("""{"prompt":"Enter your API key","inputType":"password"}""").RootElement
         };
 
         // Act 1 - Convert to AG-UI interrupt (via RawRepresentation path)
-        var interrupt = InterruptContentExtensions.ToAGUIInterrupt(inputRequest);
+        var interrupt = ServerInterruptContentExtensions.ToAGUIInterrupt(inputRequest);
 
         // Assert interrupt structure
         Assert.Equal("input_789", interrupt.Id);
 
         // Act 2 - Client receives interrupt and converts back to MEAI
-        var receivedContent = InterruptContentExtensions.FromAGUIInterrupt(interrupt);
+        var receivedContent = ServerInterruptContentExtensions.FromAGUIInterrupt(interrupt);
         Assert.IsAssignableFrom<UserInputRequestContent>(receivedContent);
 
         // Act 3 - User provides input, client creates response
-        var inputResponse = new AGUIUserInputResponseContent("input_789")
+        var inputResponse = new ServerAGUIUserInputResponseContent("input_789")
         {
             RawRepresentation = JsonDocument.Parse("""{"response":"sk-secret-key-123"}""").RootElement
         };
-        var resume = InterruptContentExtensions.ToAGUIResume(inputResponse, s_options);
+        var resume = ServerInterruptContentExtensions.ToAGUIResume(inputResponse, s_options);
 
         // Act 4 - Server receives resume and converts back to MEAI
-        var resumeContent = InterruptContentExtensions.FromAGUIResume(resume, receivedContent);
+        var resumeContent = ServerInterruptContentExtensions.FromAGUIResume(resume, receivedContent);
 
         // Assert final state
         Assert.IsAssignableFrom<UserInputResponseContent>(resumeContent);
