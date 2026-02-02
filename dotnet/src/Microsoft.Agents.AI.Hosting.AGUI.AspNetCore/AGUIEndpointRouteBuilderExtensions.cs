@@ -66,12 +66,7 @@ public static class AGUIEndpointRouteBuilderExtensions
                     Tools = clientTools,
                     AdditionalProperties = new AdditionalPropertiesDictionary
                     {
-                        ["ag_ui_state"] = input.State,
-                        ["ag_ui_context"] = input.Context?.Select(c => new KeyValuePair<string, string>(c.Description, c.Value)).ToArray(),
-                        ["ag_ui_forwarded_properties"] = input.ForwardedProperties,
-                        ["ag_ui_thread_id"] = input.ThreadId,
-                        ["ag_ui_run_id"] = input.RunId,
-                        ["ag_ui_parent_run_id"] = input.ParentRunId
+                        [AGUIPropertyNames.AgentInput] = input
                     }
                 }
             };
@@ -154,12 +149,7 @@ public static class AGUIEndpointRouteBuilderExtensions
                     Tools = clientTools,
                     AdditionalProperties = new AdditionalPropertiesDictionary
                     {
-                        ["ag_ui_state"] = input.State,
-                        ["ag_ui_context"] = input.Context?.Select(c => new KeyValuePair<string, string>(c.Description, c.Value)).ToArray(),
-                        ["ag_ui_forwarded_properties"] = input.ForwardedProperties,
-                        ["ag_ui_thread_id"] = input.ThreadId,
-                        ["ag_ui_run_id"] = input.RunId,
-                        ["ag_ui_parent_run_id"] = input.ParentRunId
+                        [AGUIPropertyNames.AgentInput] = input
                     }
                 }
             };

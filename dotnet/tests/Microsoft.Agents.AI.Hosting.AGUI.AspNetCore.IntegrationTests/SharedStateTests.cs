@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using AGUI.Protocol;
 using FluentAssertions;
 using Microsoft.Agents.AI.AGUI;
 using Microsoft.AspNetCore.Builder;
@@ -36,16 +37,24 @@ public sealed class SharedStateTests : IAsyncDisposable
         AIAgent agent = chatClient.AsAIAgent(instructions: null, name: "assistant", description: "Sample assistant", tools: []);
         ChatClientAgentSession? session = (ChatClientAgentSession)await agent.CreateSessionAsync();
 
-        string stateJson = JsonSerializer.Serialize(initialState);
-        byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
-        DataContent stateContent = new(stateBytes, "application/json");
-        ChatMessage stateMessage = new(ChatRole.System, [stateContent]);
         ChatMessage userMessage = new(ChatRole.User, "update state");
+
+        // Use RawRepresentationFactory to pass state via RunAgentInput
+        var runOptions = new ChatClientAgentRunOptions
+        {
+            ChatOptions = new ChatOptions
+            {
+                RawRepresentationFactory = _ => new RunAgentInput
+                {
+                    State = JsonSerializer.SerializeToElement(initialState)
+                }
+            }
+        };
 
         List<AgentResponseUpdate> updates = [];
 
         // Act
-        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage, stateMessage], session, new AgentRunOptions(), CancellationToken.None))
+        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage], session, runOptions, CancellationToken.None))
         {
             updates.Add(update);
         }
@@ -79,16 +88,24 @@ public sealed class SharedStateTests : IAsyncDisposable
         AIAgent agent = chatClient.AsAIAgent(instructions: null, name: "assistant", description: "Sample assistant", tools: []);
         ChatClientAgentSession? session = (ChatClientAgentSession)await agent.CreateSessionAsync();
 
-        string stateJson = JsonSerializer.Serialize(initialState);
-        byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
-        DataContent stateContent = new(stateBytes, "application/json");
-        ChatMessage stateMessage = new(ChatRole.System, [stateContent]);
         ChatMessage userMessage = new(ChatRole.User, "process");
+
+        // Use RawRepresentationFactory to pass state via RunAgentInput
+        var runOptions = new ChatClientAgentRunOptions
+        {
+            ChatOptions = new ChatOptions
+            {
+                RawRepresentationFactory = _ => new RunAgentInput
+                {
+                    State = JsonSerializer.SerializeToElement(initialState)
+                }
+            }
+        };
 
         List<AgentResponseUpdate> updates = [];
 
         // Act
-        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage, stateMessage], session, new AgentRunOptions(), CancellationToken.None))
+        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage], session, runOptions, CancellationToken.None))
         {
             updates.Add(update);
         }
@@ -121,16 +138,24 @@ public sealed class SharedStateTests : IAsyncDisposable
         AIAgent agent = chatClient.AsAIAgent(instructions: null, name: "assistant", description: "Sample assistant", tools: []);
         ChatClientAgentSession? session = (ChatClientAgentSession)await agent.CreateSessionAsync();
 
-        string stateJson = JsonSerializer.Serialize(complexState);
-        byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
-        DataContent stateContent = new(stateBytes, "application/json");
-        ChatMessage stateMessage = new(ChatRole.System, [stateContent]);
         ChatMessage userMessage = new(ChatRole.User, "process complex state");
+
+        // Use RawRepresentationFactory to pass state via RunAgentInput
+        var runOptions = new ChatClientAgentRunOptions
+        {
+            ChatOptions = new ChatOptions
+            {
+                RawRepresentationFactory = _ => new RunAgentInput
+                {
+                    State = JsonSerializer.SerializeToElement(complexState)
+                }
+            }
+        };
 
         List<AgentResponseUpdate> updates = [];
 
         // Act
-        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage, stateMessage], session, new AgentRunOptions(), CancellationToken.None))
+        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage], session, runOptions, CancellationToken.None))
         {
             updates.Add(update);
         }
@@ -161,16 +186,24 @@ public sealed class SharedStateTests : IAsyncDisposable
         AIAgent agent = chatClient.AsAIAgent(instructions: null, name: "assistant", description: "Sample assistant", tools: []);
         ChatClientAgentSession? session = (ChatClientAgentSession)await agent.CreateSessionAsync();
 
-        string stateJson = JsonSerializer.Serialize(initialState);
-        byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
-        DataContent stateContent = new(stateBytes, "application/json");
-        ChatMessage stateMessage = new(ChatRole.System, [stateContent]);
         ChatMessage userMessage = new(ChatRole.User, "increment");
+
+        // Use RawRepresentationFactory to pass initial state via RunAgentInput
+        var runOptions = new ChatClientAgentRunOptions
+        {
+            ChatOptions = new ChatOptions
+            {
+                RawRepresentationFactory = _ => new RunAgentInput
+                {
+                    State = JsonSerializer.SerializeToElement(initialState)
+                }
+            }
+        };
 
         List<AgentResponseUpdate> firstRoundUpdates = [];
 
         // Act - First round
-        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage, stateMessage], session, new AgentRunOptions(), CancellationToken.None))
+        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage], session, runOptions, CancellationToken.None))
         {
             firstRoundUpdates.Add(update);
         }
@@ -179,13 +212,24 @@ public sealed class SharedStateTests : IAsyncDisposable
         AgentResponseUpdate? firstStateUpdate = firstRoundUpdates.FirstOrDefault(u => u.Contents.Any(c => c is DataContent dc && dc.MediaType == "application/json"));
         firstStateUpdate.Should().NotBeNull();
         DataContent? firstStateContent = firstStateUpdate!.Contents.OfType<DataContent>().FirstOrDefault(dc => dc.MediaType == "application/json");
+        string firstStateJson = System.Text.Encoding.UTF8.GetString(firstStateContent!.Data.ToArray());
+        JsonElement firstReturnedState = JsonElement.Parse(firstStateJson);
 
-        // Second round - use returned state
-        ChatMessage secondStateMessage = new(ChatRole.System, [firstStateContent!]);
+        // Second round - use returned state via RawRepresentationFactory
         ChatMessage secondUserMessage = new(ChatRole.User, "increment again");
+        var secondRunOptions = new ChatClientAgentRunOptions
+        {
+            ChatOptions = new ChatOptions
+            {
+                RawRepresentationFactory = _ => new RunAgentInput
+                {
+                    State = firstReturnedState
+                }
+            }
+        };
 
         List<AgentResponseUpdate> secondRoundUpdates = [];
-        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([secondUserMessage, secondStateMessage], session, new AgentRunOptions(), CancellationToken.None))
+        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([secondUserMessage], session, secondRunOptions, CancellationToken.None))
         {
             secondRoundUpdates.Add(update);
         }
@@ -245,16 +289,24 @@ public sealed class SharedStateTests : IAsyncDisposable
         AIAgent agent = chatClient.AsAIAgent(instructions: null, name: "assistant", description: "Sample assistant", tools: []);
         ChatClientAgentSession? session = (ChatClientAgentSession)await agent.CreateSessionAsync();
 
-        string stateJson = JsonSerializer.Serialize(emptyState);
-        byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
-        DataContent stateContent = new(stateBytes, "application/json");
-        ChatMessage stateMessage = new(ChatRole.System, [stateContent]);
         ChatMessage userMessage = new(ChatRole.User, "hello");
+
+        // Use RawRepresentationFactory to pass empty state via RunAgentInput
+        var runOptions = new ChatClientAgentRunOptions
+        {
+            ChatOptions = new ChatOptions
+            {
+                RawRepresentationFactory = _ => new RunAgentInput
+                {
+                    State = JsonSerializer.SerializeToElement(emptyState)
+                }
+            }
+        };
 
         List<AgentResponseUpdate> updates = [];
 
         // Act
-        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage, stateMessage], session, new AgentRunOptions(), CancellationToken.None))
+        await foreach (AgentResponseUpdate update in agent.RunStreamingAsync([userMessage], session, runOptions, CancellationToken.None))
         {
             updates.Add(update);
         }
@@ -282,14 +334,22 @@ public sealed class SharedStateTests : IAsyncDisposable
         AIAgent agent = chatClient.AsAIAgent(instructions: null, name: "assistant", description: "Sample assistant", tools: []);
         ChatClientAgentSession? session = (ChatClientAgentSession)await agent.CreateSessionAsync();
 
-        string stateJson = JsonSerializer.Serialize(initialState);
-        byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
-        DataContent stateContent = new(stateBytes, "application/json");
-        ChatMessage stateMessage = new(ChatRole.System, [stateContent]);
         ChatMessage userMessage = new(ChatRole.User, "process");
 
+        // Use RawRepresentationFactory to pass state via RunAgentInput
+        var runOptions = new ChatClientAgentRunOptions
+        {
+            ChatOptions = new ChatOptions
+            {
+                RawRepresentationFactory = _ => new RunAgentInput
+                {
+                    State = JsonSerializer.SerializeToElement(initialState)
+                }
+            }
+        };
+
         // Act
-        AgentResponse response = await agent.RunAsync([userMessage, stateMessage], session, new AgentRunOptions(), CancellationToken.None);
+        AgentResponse response = await agent.RunAsync([userMessage], session, runOptions, CancellationToken.None);
 
         // Assert
         response.Should().NotBeNull();
@@ -353,11 +413,9 @@ internal sealed class FakeStateAgent : AIAgent
         AgentRunOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // Check for state in ChatOptions.AdditionalProperties (set by AG-UI hosting layer)
-        if (options is ChatClientAgentRunOptions { ChatOptions.AdditionalProperties: { } properties } &&
-            properties.TryGetValue("ag_ui_state", out object? stateObj) &&
-            stateObj is JsonElement state &&
-            state.ValueKind == JsonValueKind.Object)
+        // Check for state in ChatOptions.AdditionalProperties using the new extension method
+        var agentInput = (options as ChatClientAgentRunOptions)?.ChatOptions.GetAGUIInput();
+        if (agentInput?.State is { ValueKind: JsonValueKind.Object } state)
         {
             // Check if state object has properties (not empty {})
             bool hasProperties = false;

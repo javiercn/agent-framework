@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
@@ -154,8 +153,6 @@ public sealed class AGUIChatClient : DelegatingChatClient
 
     private sealed class AGUIChatClientHandler : IChatClient
     {
-        private static readonly MediaTypeHeaderValue s_json = new("application/json");
-
         private readonly AGUIHttpService _httpService;
         private readonly JsonSerializerOptions _jsonSerializerOptions;
         private readonly ILogger _logger;
@@ -198,13 +195,16 @@ public sealed class AGUIChatClient : DelegatingChatClient
                 throw new ArgumentNullException(nameof(messages));
             }
 
-            var runId = $"run_{Guid.NewGuid():N}";
             var messagesList = messages.ToList(); // Avoid triggering the enumerator multiple times.
-            var threadId = ExtractTemporaryThreadId(messagesList) ??
-                ExtractThreadIdFromOptions(options) ?? $"thread_{Guid.NewGuid():N}";
 
-            // Extract state from the last message if it contains DataContent with application/json
-            JsonElement state = this.ExtractAndRemoveStateFromMessages(messagesList);
+            // Check if RawRepresentationFactory provides a RunAgentInput
+            RunAgentInput? providedInput = options?.RawRepresentationFactory?.Invoke(this) as RunAgentInput;
+
+            // Determine thread ID: from provided input, temporary storage during tool calls, options, or generate new
+            var threadId = providedInput?.ThreadId
+                ?? ExtractTemporaryThreadId(messagesList)
+                ?? ExtractThreadIdFromOptions(options)
+                ?? $"thread_{Guid.NewGuid():N}";
 
             // Create the input for the AGUI service
             var input = new RunAgentInput
@@ -212,9 +212,12 @@ public sealed class AGUIChatClient : DelegatingChatClient
                 // AG-UI requires a thread ID to work, but for FunctionInvokingChatClient that
                 // implies the underlying client is managing the history.
                 ThreadId = threadId,
-                RunId = runId,
+                RunId = providedInput?.RunId ?? $"run_{Guid.NewGuid():N}",
+                ParentRunId = providedInput?.ParentRunId,
                 Messages = messagesList.AsAGUIMessages(this._jsonSerializerOptions),
-                State = state,
+                State = providedInput?.State ?? default,
+                Context = providedInput?.Context ?? [],
+                ForwardedProperties = providedInput?.ForwardedProperties ?? default,
             };
 
             // Add tools if provided
@@ -310,51 +313,6 @@ public sealed class AGUIChatClient : DelegatingChatClient
             }
 
             return threadId;
-        }
-
-        // Extract state from the last message's DataContent with application/json media type
-        // and remove that message from the list
-        private JsonElement ExtractAndRemoveStateFromMessages(List<ChatMessage> messagesList)
-        {
-            if (messagesList.Count == 0)
-            {
-                return default;
-            }
-
-            // Check the last message for state DataContent
-            ChatMessage lastMessage = messagesList[messagesList.Count - 1];
-            for (int i = 0; i < lastMessage.Contents.Count; i++)
-            {
-                if (lastMessage.Contents[i] is DataContent dataContent &&
-                    MediaTypeHeaderValue.TryParse(dataContent.MediaType, out var mediaType) &&
-                    mediaType.Equals(s_json))
-                {
-                    // Deserialize the state JSON directly from UTF-8 bytes
-                    try
-                    {
-                        JsonElement stateElement = (JsonElement)JsonSerializer.Deserialize(
-                            dataContent.Data.Span,
-                            this._jsonSerializerOptions.GetTypeInfo(typeof(JsonElement)))!;
-
-                        // Remove the DataContent from the message contents
-                        lastMessage.Contents.RemoveAt(i);
-
-                        // If no contents remain, remove the entire message
-                        if (lastMessage.Contents.Count == 0)
-                        {
-                            messagesList.RemoveAt(messagesList.Count - 1);
-                        }
-
-                        return stateElement;
-                    }
-                    catch (JsonException ex)
-                    {
-                        throw new InvalidOperationException($"Failed to deserialize state JSON from DataContent: {ex.Message}", ex);
-                    }
-                }
-            }
-
-            return default;
         }
 
         public void Dispose()

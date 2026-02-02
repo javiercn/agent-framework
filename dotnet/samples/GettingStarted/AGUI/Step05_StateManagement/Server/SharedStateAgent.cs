@@ -34,11 +34,9 @@ internal sealed class SharedStateAgent : DelegatingAIAgent
         AgentRunOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // Check if the client sent state in the request
-        if (options is not ChatClientAgentRunOptions { ChatOptions.AdditionalProperties: { } properties } chatRunOptions ||
-            !properties.TryGetValue("ag_ui_state", out object? stateObj) ||
-            stateObj is not JsonElement state ||
-            state.ValueKind != JsonValueKind.Object)
+        // Check if the client sent state in the request using the new extension method
+        var agentInput = (options as ChatClientAgentRunOptions)?.ChatOptions.GetAGUIInput();
+        if (agentInput?.State is not { ValueKind: JsonValueKind.Object } state)
         {
             // No state management requested, pass through to inner agent
             await foreach (var update in this.InnerAgent.RunStreamingAsync(messages, session, options, cancellationToken).ConfigureAwait(false))
@@ -67,9 +65,10 @@ internal sealed class SharedStateAgent : DelegatingAIAgent
         }
 
         // First run: Generate structured state update
+        var chatRunOptions = (ChatClientAgentRunOptions)options!;
         var firstRunOptions = new ChatClientAgentRunOptions
         {
-            ChatOptions = chatRunOptions.ChatOptions.Clone(),
+            ChatOptions = chatRunOptions.ChatOptions!.Clone(),
             AllowBackgroundResponses = chatRunOptions.AllowBackgroundResponses,
             ContinuationToken = chatRunOptions.ContinuationToken,
             ChatClientFactory = chatRunOptions.ChatClientFactory,

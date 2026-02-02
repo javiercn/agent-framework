@@ -31,8 +31,9 @@ internal sealed class SharedStateAgent : DelegatingAIAgent
         AgentRunOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (options is not ChatClientAgentRunOptions { ChatOptions.AdditionalProperties: { } properties } chatRunOptions ||
-            !properties.TryGetValue("ag_ui_state", out JsonElement state))
+        // Use the new extension method to extract AG-UI input
+        var agentInput = (options as ChatClientAgentRunOptions)?.ChatOptions.GetAGUIInput();
+        if (agentInput?.State is not { ValueKind: not JsonValueKind.Undefined } state)
         {
             await foreach (var update in this.InnerAgent.RunStreamingAsync(messages, session, options, cancellationToken).ConfigureAwait(false))
             {
@@ -41,9 +42,10 @@ internal sealed class SharedStateAgent : DelegatingAIAgent
             yield break;
         }
 
+        var chatRunOptions = (ChatClientAgentRunOptions)options!;
         var firstRunOptions = new ChatClientAgentRunOptions
         {
-            ChatOptions = chatRunOptions.ChatOptions.Clone(),
+            ChatOptions = chatRunOptions.ChatOptions!.Clone(),
             AllowBackgroundResponses = chatRunOptions.AllowBackgroundResponses,
             ContinuationToken = chatRunOptions.ContinuationToken,
             ChatClientFactory = chatRunOptions.ChatClientFactory,

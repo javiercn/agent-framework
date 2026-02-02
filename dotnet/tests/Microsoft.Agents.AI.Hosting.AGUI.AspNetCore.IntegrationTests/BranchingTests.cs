@@ -264,28 +264,19 @@ internal sealed class BranchingTrackingAgent : AIAgent
         AgentRunOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // Extract AG-UI properties from AdditionalProperties
-        if (options is ChatClientAgentRunOptions chatOptions &&
-            chatOptions.ChatOptions?.AdditionalProperties is { } properties)
+        // Extract AG-UI properties using the new extension method
+        var agentInput = (options as ChatClientAgentRunOptions)?.ChatOptions.GetAGUIInput();
+        if (agentInput is not null)
         {
-            if (properties.TryGetValue("ag_ui_parent_run_id", out object? parentRunIdObj))
-            {
-                this.LastReceivedParentRunId = parentRunIdObj as string;
-            }
-            else
-            {
-                this.LastReceivedParentRunId = null;
-            }
-
-            if (properties.TryGetValue("ag_ui_thread_id", out object? threadIdObj))
-            {
-                this.LastReceivedThreadId = threadIdObj as string;
-            }
-
-            if (properties.TryGetValue("ag_ui_run_id", out object? runIdObj))
-            {
-                this.LastReceivedRunId = runIdObj as string;
-            }
+            this.LastReceivedParentRunId = agentInput.ParentRunId;
+            this.LastReceivedThreadId = agentInput.ThreadId;
+            this.LastReceivedRunId = agentInput.RunId;
+        }
+        else
+        {
+            this.LastReceivedParentRunId = null;
+            this.LastReceivedThreadId = null;
+            this.LastReceivedRunId = null;
         }
 
         string messageId = Guid.NewGuid().ToString("N");

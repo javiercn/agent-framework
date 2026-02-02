@@ -111,10 +111,9 @@ public sealed class CounterAgent : DelegatingAIAgent
 
     private static CounterState GetStateFromOptions(AgentRunOptions? options)
     {
-        if (options is ChatClientAgentRunOptions { ChatOptions.AdditionalProperties: { } properties } &&
-            properties.TryGetValue("ag_ui_state", out object? stateObj) &&
-            stateObj is JsonElement state &&
-            state.ValueKind == JsonValueKind.Object &&
+        // Use the new extension method to extract AG-UI input
+        var agentInput = (options as ChatClientAgentRunOptions)?.ChatOptions.GetAGUIInput();
+        if (agentInput?.State is { ValueKind: JsonValueKind.Object } state &&
             state.TryGetProperty("counter", out JsonElement counterElement) &&
             counterElement.ValueKind == JsonValueKind.Number)
         {

@@ -38,13 +38,13 @@ foreach (string message in testMessages)
     Console.WriteLine($"User: {message}");
     Console.WriteLine();
 
-    // Create chat options with the current state
+    // Create chat options with the current state using RawRepresentationFactory
     // This is how AG-UI clients pass state to the agent
     var options = new ChatOptions
     {
-        AdditionalProperties = new AdditionalPropertiesDictionary
+        RawRepresentationFactory = _ => new RunAgentInput
         {
-            ["ag_ui_state"] = JsonSerializer.SerializeToElement(clientState)
+            State = JsonSerializer.SerializeToElement(clientState)
         }
     };
 

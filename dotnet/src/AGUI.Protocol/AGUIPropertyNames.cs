@@ -29,4 +29,15 @@ public static class AGUIPropertyNames
     /// from a prior run within the same thread, creating a git-like append-only log.
     /// </remarks>
     public const string ParentRunId = "ag_ui_parent_run_id";
+
+    /// <summary>
+    /// The property name for the complete AG-UI agent input.
+    /// </summary>
+    /// <remarks>
+    /// Used to pass the full <see cref="RunAgentInput"/> to agents via
+    /// <see cref="Microsoft.Extensions.AI.ChatOptions.AdditionalProperties"/>.
+    /// This provides agents with access to all AG-UI context (state, context items,
+    /// forwarded properties, thread/run IDs) in a single well-typed object.
+    /// </remarks>
+    public const string AgentInput = "ag_ui_agent_input";
 }
