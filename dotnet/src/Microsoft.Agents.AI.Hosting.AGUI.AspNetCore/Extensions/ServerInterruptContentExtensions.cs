@@ -211,11 +211,13 @@ internal static class ServerInterruptContentExtensions
             };
         }
 
-        // Otherwise, treat as user input response using our custom derived type
-        return new ServerAGUIUserInputResponseContent(resume.InterruptId ?? string.Empty)
+        // For workflow interrupts and other cases, use FunctionResultContent
+        // This allows the workflow to receive the resume data as a function result
+        return new FunctionResultContent(
+            resume.InterruptId ?? string.Empty,
+            resume.Payload)
         {
-            RawRepresentation = resume,
-            AdditionalProperties = resume.Payload is { } p ? new AdditionalPropertiesDictionary { ["payload"] = p } : null
+            RawRepresentation = resume
         };
     }
 }

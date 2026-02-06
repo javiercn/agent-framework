@@ -11,6 +11,7 @@ namespace AGUI.Protocol;
 public sealed class StepStartedEvent : BaseEvent
 {
     /// <inheritdoc />
+    [JsonPropertyName("type")]
     public override string Type => AGUIEventTypes.StepStarted;
 
     /// <summary>

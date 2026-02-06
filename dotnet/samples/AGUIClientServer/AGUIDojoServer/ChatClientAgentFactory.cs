@@ -6,7 +6,9 @@ using AGUIDojoServer.AgenticUI;
 using AGUIDojoServer.BackendToolRendering;
 using AGUIDojoServer.PredictiveStateUpdates;
 using AGUIDojoServer.SharedState;
+using AGUIDojoServer.Subgraphs;
 using Azure.AI.OpenAI;
+using Microsoft.Agents.AI.Workflows;
 using Azure.Identity;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -18,6 +20,7 @@ internal static class ChatClientAgentFactory
 {
     private static AzureOpenAIClient? s_azureOpenAIClient;
     private static string? s_deploymentName;
+    private static CheckpointManager? s_checkpointManager;
 
     public static void Initialize(IConfiguration configuration)
     {
@@ -27,6 +30,9 @@ internal static class ChatClientAgentFactory
         s_azureOpenAIClient = new AzureOpenAIClient(
             new Uri(endpoint),
             new DefaultAzureCredential());
+
+        // Create a shared in-memory checkpoint store for workflows
+        s_checkpointManager = CheckpointManager.CreateJson(new InMemoryJsonCheckpointStore());
     }
 
     public static ChatClientAgent CreateAgenticChat()
@@ -135,7 +141,7 @@ internal static class ChatClientAgentFactory
             {
                 Instructions = """
                     You are a document editor assistant. When asked to write or edit content:
-                    
+
                     IMPORTANT:
                     - Use the `write_document` tool with the full document text in Markdown format
                     - Format the document extensively so it's easy to read
@@ -145,7 +151,7 @@ internal static class ChatClientAgentFactory
                     - When making edits to the document, try to make them minimal - do not change every word
                     - Keep stories SHORT!
                     - After you are done writing the document you MUST call a confirm_changes tool after you call write_document
-                    
+
                     After the user confirms the changes, provide a brief summary of what you wrote.
                     """,
                 Tools = [
@@ -176,5 +182,18 @@ internal static class ChatClientAgentFactory
     {
         // Simply return success - the document is tracked via state updates
         return "Document written successfully";
+    }
+
+    public static AIAgent CreateSubgraphs(JsonSerializerOptions options)
+    {
+        // Create the travel agent workflow with supervisor-based routing
+        var workflowAgent = TravelAgentWorkflowFactory.Create()
+            .AsAgent(checkpointManager: s_checkpointManager);
+
+        // Wrap with the compatibility adapter for AG-UI dojo client
+        // The dojo client uses non-spec-compliant mechanisms:
+        // - Input: forwardedProps.command.resume instead of Resume
+        // - Output: CUSTOM events instead of RUN_FINISHED with Interrupt
+        return new AGUIClientCompatibilityAdapter(workflowAgent, options);
     }
 }

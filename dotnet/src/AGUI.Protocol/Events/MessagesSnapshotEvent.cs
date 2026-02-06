@@ -11,6 +11,7 @@ namespace AGUI.Protocol;
 public sealed class MessagesSnapshotEvent : BaseEvent
 {
     /// <inheritdoc />
+    [JsonPropertyName("type")]
     public override string Type => AGUIEventTypes.MessagesSnapshot;
 
     /// <summary>

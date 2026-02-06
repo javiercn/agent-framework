@@ -11,6 +11,7 @@ namespace AGUI.Protocol;
 public sealed class ActivitySnapshotEvent : BaseEvent
 {
     /// <inheritdoc />
+    [JsonPropertyName("type")]
     public override string Type => AGUIEventTypes.ActivitySnapshot;
 
     /// <summary>

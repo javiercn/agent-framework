@@ -10,6 +10,7 @@ namespace AGUI.Protocol;
 public sealed class TextMessageStartEvent : BaseEvent
 {
     /// <inheritdoc />
+    [JsonPropertyName("type")]
     public override string Type => AGUIEventTypes.TextMessageStart;
 
     /// <summary>

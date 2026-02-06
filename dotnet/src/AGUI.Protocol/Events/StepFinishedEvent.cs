@@ -11,6 +11,7 @@ namespace AGUI.Protocol;
 public sealed class StepFinishedEvent : BaseEvent
 {
     /// <inheritdoc />
+    [JsonPropertyName("type")]
     public override string Type => AGUIEventTypes.StepFinished;
 
     /// <summary>
@@ -18,6 +19,12 @@ public sealed class StepFinishedEvent : BaseEvent
     /// </summary>
     [JsonPropertyName("stepId")]
     public string StepId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the human-readable name of the step.
+    /// </summary>
+    [JsonPropertyName("stepName")]
+    public string StepName { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the status of the step (e.g., "completed", "failed", "skipped").

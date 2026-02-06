@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 
 using AGUIDojoServer;
+using Microsoft.Agents.AI.Hosting;
 using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.Extensions.Options;
@@ -41,6 +42,11 @@ app.MapAGUI("/agentic_generative_ui", ChatClientAgentFactory.CreateAgenticUI(jso
 app.MapAGUI("/shared_state", ChatClientAgentFactory.CreateSharedState(jsonOptions.Value.SerializerOptions));
 
 app.MapAGUI("/predictive_state_updates", ChatClientAgentFactory.CreatePredictiveStateUpdates(jsonOptions.Value.SerializerOptions));
+
+// Use session persistence for subgraphs to support workflow resume
+// Using debug wrapper to trace session serialization/deserialization
+var subgraphsSessionStore = new DebugAgentSessionStore();
+app.MapAGUI("/subgraphs", ChatClientAgentFactory.CreateSubgraphs(jsonOptions.Value.SerializerOptions), subgraphsSessionStore);
 
 await app.RunAsync();
 

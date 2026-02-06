@@ -15,6 +15,8 @@ internal static class ServerAGUIIdGenerator
         return string.IsNullOrEmpty(prefix) ? entropy : $"{prefix}_{entropy}";
     }
 
+    internal static string NewMessageId() => NewId("msg");
+
     internal static string NewReasoningSessionId() => NewId("reasoning");
 
     internal static string NewReasoningMessageId() => NewId("reasoning_msg");

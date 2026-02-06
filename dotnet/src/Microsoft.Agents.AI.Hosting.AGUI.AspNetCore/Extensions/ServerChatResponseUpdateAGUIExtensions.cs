@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AGUI.Protocol;
+using Microsoft.Agents.AI.Workflows;
 using Microsoft.Extensions.AI;
 
 #pragma warning disable MEAI001 // Experimental API - FunctionApprovalRequestContent, UserInputRequestContent
@@ -63,6 +64,23 @@ internal static class ServerChatResponseUpdateAGUIExtensions
                 continue;
             }
 
+            // Check if RawRepresentation contains a workflow event - convert to AG-UI step events
+            if (TryConvertWorkflowEventToStepEvent(chatResponse.RawRepresentation) is BaseEvent stepEvent)
+            {
+                if (!runStartedEmitted)
+                {
+                    runStartedEmitted = true;
+                    yield return new RunStartedEvent
+                    {
+                        ThreadId = threadId,
+                        RunId = runId
+                    };
+                }
+
+                yield return stepEvent;
+                continue;
+            }
+
             // Emit RunStartedEvent automatically if not explicitly provided
             if (!runStartedEmitted)
             {
@@ -74,9 +92,16 @@ internal static class ServerChatResponseUpdateAGUIExtensions
                 };
             }
 
+            // Ensure we have a message ID for text content (generate one if not provided)
+            var effectiveMessageId = chatResponse.MessageId;
+            if (chatResponse is { Contents.Count: > 0 } && chatResponse.Contents[0] is TextContent && effectiveMessageId is null)
+            {
+                effectiveMessageId = ServerAGUIIdGenerator.NewMessageId();
+            }
+
             if (chatResponse is { Contents.Count: > 0 } &&
                 chatResponse.Contents[0] is TextContent &&
-                !string.Equals(currentMessageId, chatResponse.MessageId, StringComparison.Ordinal))
+                !string.Equals(currentMessageId, effectiveMessageId, StringComparison.Ordinal))
             {
                 // End reasoning events if we're transitioning to regular text content
                 if (reasoningSessionId is not null)
@@ -108,11 +133,11 @@ internal static class ServerChatResponseUpdateAGUIExtensions
                 // Start the new message
                 yield return new TextMessageStartEvent
                 {
-                    MessageId = chatResponse.MessageId!,
+                    MessageId = effectiveMessageId!,
                     Role = chatResponse.Role!.Value.Value
                 };
 
-                currentMessageId = chatResponse.MessageId;
+                currentMessageId = effectiveMessageId;
             }
 
             // Emit text content if present
@@ -121,7 +146,7 @@ internal static class ServerChatResponseUpdateAGUIExtensions
             {
                 yield return new TextMessageContentEvent
                 {
-                    MessageId = chatResponse.MessageId!,
+                    MessageId = currentMessageId!,
                     Delta = textContent.Text
                 };
             }
@@ -133,6 +158,21 @@ internal static class ServerChatResponseUpdateAGUIExtensions
                 {
                     if (content is FunctionCallContent functionCallContent)
                     {
+                        // Check if this FunctionCallContent originated from a workflow RequestInfoEvent
+                        // If so, emit as AG-UI interrupt instead of tool call events
+                        if (WorkflowInterruptExtensions.TryExtractRequestInfoEvent(chatResponse.RawRepresentation, out var requestInfoEvent))
+                        {
+                            runFinishedEmitted = true;
+                            yield return new RunFinishedEvent
+                            {
+                                ThreadId = threadId,
+                                RunId = runId,
+                                Outcome = RunFinishedOutcome.Interrupt,
+                                Interrupt = WorkflowInterruptExtensions.ToAGUIInterrupt(requestInfoEvent!.Request, jsonSerializerOptions)
+                            };
+                            continue;
+                        }
+
                         yield return new ToolCallStartEvent
                         {
                             ToolCallId = functionCallContent.CallId,
@@ -359,5 +399,38 @@ internal static class ServerChatResponseUpdateAGUIExtensions
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Attempts to convert a workflow event to an AG-UI step event.
+    /// Converts ExecutorInvokedEvent to StepStartedEvent and ExecutorCompletedEvent to StepFinishedEvent.
+    /// </summary>
+    private static BaseEvent? TryConvertWorkflowEventToStepEvent(object? rawRepresentation)
+    {
+        // Unwrap AgentResponseUpdate if needed
+        if (rawRepresentation is AgentResponseUpdate agentUpdate)
+        {
+            return TryConvertWorkflowEventToStepEvent(agentUpdate.RawRepresentation);
+        }
+
+        return rawRepresentation switch
+        {
+            ExecutorInvokedEvent invoked => new StepStartedEvent
+            {
+                StepId = invoked.ExecutorId,
+                StepName = invoked.ExecutorId,
+            },
+            ExecutorCompletedEvent completed => new StepFinishedEvent
+            {
+                StepId = completed.ExecutorId,
+                StepName = completed.ExecutorId,
+            },
+            ExecutorFailedEvent failed => new StepFinishedEvent
+            {
+                StepId = failed.ExecutorId,
+                StepName = failed.ExecutorId,
+            },
+            _ => null
+        };
     }
 }

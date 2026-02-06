@@ -11,6 +11,7 @@ namespace AGUI.Protocol;
 public sealed class RunFinishedEvent : BaseEvent
 {
     /// <inheritdoc />
+    [JsonPropertyName("type")]
     public override string Type => AGUIEventTypes.RunFinished;
 
     /// <summary>
