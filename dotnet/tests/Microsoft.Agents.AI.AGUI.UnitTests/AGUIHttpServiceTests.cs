@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Agents.AI.AGUI.Shared;
+using AGUI.Protocol;
 using Moq;
 using Moq.Protected;
 
@@ -37,7 +37,7 @@ public sealed class AGUIHttpServiceTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
 
         // Act
@@ -66,7 +66,7 @@ public sealed class AGUIHttpServiceTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
 
         // Act & Assert
@@ -96,7 +96,7 @@ public sealed class AGUIHttpServiceTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
 
         // Act
@@ -126,7 +126,7 @@ public sealed class AGUIHttpServiceTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
 
         // Act
@@ -162,7 +162,7 @@ public sealed class AGUIHttpServiceTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
 
         // Act & Assert

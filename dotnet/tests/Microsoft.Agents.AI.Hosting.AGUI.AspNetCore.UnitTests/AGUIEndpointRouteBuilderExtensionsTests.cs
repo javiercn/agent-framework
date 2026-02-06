@@ -8,7 +8,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Shared;
+using AGUI.Protocol;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -80,7 +81,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }],
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }],
             Context = [new AGUIContextItem { Description = "key1", Value = "value1" }]
         };
         string json = JsonSerializer.Serialize(input, AGUIJsonSerializerContext.Default.RunAgentInput);
@@ -109,7 +110,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
         string json = JsonSerializer.Serialize(input, AGUIJsonSerializerContext.Default.RunAgentInput);
         httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
@@ -136,7 +137,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
         string json = JsonSerializer.Serialize(input, AGUIJsonSerializerContext.Default.RunAgentInput);
         httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
@@ -168,7 +169,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
             RunId = "run1",
             Messages =
             [
-                new AGUIUserMessage { Id = "m1", Content = "First" },
+                new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "First" }] },
                 new AGUIAssistantMessage { Id = "m2", Content = "Second" }
             ]
         };
@@ -199,7 +200,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
         string json = JsonSerializer.Serialize(input, AGUIJsonSerializerContext.Default.RunAgentInput);
         httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
@@ -235,7 +236,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Hello" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Hello" }] }]
         };
         string json = JsonSerializer.Serialize(input, AGUIJsonSerializerContext.Default.RunAgentInput);
         httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
@@ -279,7 +280,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
         string json = JsonSerializer.Serialize(input, AGUIJsonSerializerContext.Default.RunAgentInput);
         httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
@@ -315,7 +316,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
         {
             ThreadId = "custom_thread",
             RunId = "custom_run",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Multi" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Multi" }] }]
         };
         string json = JsonSerializer.Serialize(input, AGUIJsonSerializerContext.Default.RunAgentInput);
         httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
@@ -363,7 +364,7 @@ public sealed class AGUIEndpointRouteBuilderExtensionsTests
         {
             ThreadId = "test_thread_123",
             RunId = "test_run_456",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
         string json = JsonSerializer.Serialize(input, AGUIJsonSerializerContext.Default.RunAgentInput);
         httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));

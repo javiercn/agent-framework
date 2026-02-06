@@ -3,6 +3,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using AGUI.Protocol;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
@@ -36,7 +37,7 @@ internal sealed class AgenticUIAgent : DelegatingAIAgent
         await foreach (var update in this.InnerAgent.RunStreamingAsync(messages, session, options, cancellationToken).ConfigureAwait(false))
         {
             // Process contents: track function calls and emit state events for results
-            List<AIContent> stateEventsToEmit = new();
+            List<BaseEvent> stateEventsToEmit = [];
             foreach (var content in update.Contents)
             {
                 if (content is FunctionCallContent callContent)
@@ -52,16 +53,18 @@ internal sealed class AgenticUIAgent : DelegatingAIAgent
                     // Check if this result matches a tracked function call
                     if (trackedFunctionCalls.TryGetValue(resultContent.CallId, out var matchedCall))
                     {
-                        var bytes = JsonSerializer.SerializeToUtf8Bytes((JsonElement)resultContent.Result!, this._jsonSerializerOptions);
+                        var jsonResult = (JsonElement)resultContent.Result!;
 
                         // Determine event type based on the function name
                         if (matchedCall.Name == "create_plan")
                         {
-                            stateEventsToEmit.Add(new DataContent(bytes, "application/json"));
+                            // STATE_SNAPSHOT event
+                            stateEventsToEmit.Add(new StateSnapshotEvent { Snapshot = jsonResult });
                         }
                         else if (matchedCall.Name == "update_plan_step")
                         {
-                            stateEventsToEmit.Add(new DataContent(bytes, "application/json-patch+json"));
+                            // STATE_DELTA event (JSON Patch)
+                            stateEventsToEmit.Add(new StateDeltaEvent { Delta = jsonResult });
                         }
                     }
                 }
@@ -69,20 +72,18 @@ internal sealed class AgenticUIAgent : DelegatingAIAgent
 
             yield return update;
 
-            yield return new AgentResponseUpdate(
-                new ChatResponseUpdate(role: ChatRole.System, stateEventsToEmit)
+            // Emit state events via RawRepresentation
+            foreach (var stateEvent in stateEventsToEmit)
+            {
+                yield return new AgentResponseUpdate
                 {
-                    MessageId = "delta_" + Guid.NewGuid().ToString("N"),
+                    AgentId = update.AgentId,
                     CreatedAt = update.CreatedAt,
                     ResponseId = update.ResponseId,
-                    AuthorName = update.AuthorName,
-                    Role = update.Role,
-                    ContinuationToken = update.ContinuationToken,
-                    AdditionalProperties = update.AdditionalProperties,
-                })
-            {
-                AgentId = update.AgentId
-            };
+                    Contents = [],
+                    RawRepresentation = stateEvent
+                };
+            }
         }
     }
 }

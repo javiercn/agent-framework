@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using AGUI.Protocol;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -314,12 +315,11 @@ internal sealed class FakeForwardedPropsAgent : AIAgent
         AgentRunOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // Extract forwarded properties from ChatOptions.AdditionalProperties (set by AG-UI hosting layer)
-        if (options is ChatClientAgentRunOptions { ChatOptions.AdditionalProperties: { } properties } &&
-            properties.TryGetValue("ag_ui_forwarded_properties", out object? propsObj) &&
-            propsObj is JsonElement forwardedProps)
+        // Extract forwarded properties from the RunAgentInput using the new extension method
+        var agentInput = (options as ChatClientAgentRunOptions)?.ChatOptions.GetAGUIInput();
+        if (agentInput is not null)
         {
-            this.ReceivedForwardedProperties = forwardedProps;
+            this.ReceivedForwardedProperties = agentInput.ForwardedProperties;
         }
 
         // Always return a text response

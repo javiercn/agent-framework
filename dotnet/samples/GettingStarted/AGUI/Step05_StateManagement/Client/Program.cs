@@ -2,12 +2,17 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AGUI.Protocol;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.AGUI;
 using Microsoft.Extensions.AI;
 using RecipeClient;
 
 string serverUrl = Environment.GetEnvironmentVariable("AGUI_SERVER_URL") ?? "http://localhost:8888";
+
+// Support non-interactive mode via command line argument
+string? singleMessage = args.Length > 0 ? string.Join(" ", args) : null;
+bool interactiveMode = singleMessage == null;
 
 Console.WriteLine($"Connecting to AG-UI server at: {serverUrl}\n");
 
@@ -40,13 +45,26 @@ try
 {
     while (true)
     {
-        // Get user input
-        Console.Write("\nUser (:q to quit, :state to show state): ");
-        string? message = Console.ReadLine();
+        // Get user input (or use command line argument in non-interactive mode)
+        string? message;
+        if (interactiveMode)
+        {
+            Console.Write("\nUser (:q to quit, :state to show state): ");
+            message = Console.ReadLine();
+        }
+        else
+        {
+            message = singleMessage;
+            Console.WriteLine($"User: {message}");
+        }
 
         if (string.IsNullOrWhiteSpace(message))
         {
             Console.WriteLine("Request cannot be empty.");
+            if (!interactiveMode)
+            {
+                break;
+            }
             continue;
         }
 
@@ -64,24 +82,41 @@ try
         messages.Add(new ChatMessage(ChatRole.User, message));
 
         // Stream the response
-        bool isFirstUpdate = true;
-        string? sessionId = null;
         bool stateReceived = false;
 
         Console.WriteLine();
 
         await foreach (AgentResponseUpdate update in agent.RunStreamingAsync(messages, session))
         {
-            ChatResponseUpdate chatUpdate = update.AsChatResponseUpdate();
-
-            // First update indicates run started
-            if (isFirstUpdate)
+            // Check for AG-UI lifecycle events via RawRepresentation
+            // The RawRepresentation may contain an AgentResponseUpdate -> ChatResponseUpdate -> BaseEvent chain
+            switch (GetAGUIEvent(update))
             {
-                sessionId = chatUpdate.ConversationId;
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"[Run Started - Session: {chatUpdate.ConversationId}, Run: {chatUpdate.ResponseId}]");
-                Console.ResetColor();
-                isFirstUpdate = false;
+                case RunStartedEvent runStarted:
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"[Run Started - Session: {runStarted.ThreadId}, Run: {runStarted.RunId}]");
+                    Console.ResetColor();
+                    continue;
+
+                case RunFinishedEvent runFinished:
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine($"\n[Run Finished - Session: {runFinished.ThreadId}]");
+                    Console.ResetColor();
+                    continue;
+
+                case RunErrorEvent runError:
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"\n[Run Error: {runError.Message}]");
+                    Console.ResetColor();
+                    continue;
+
+                case StateSnapshotEvent:
+                    // This is a state snapshot - the StatefulAgent has already updated the state
+                    stateReceived = true;
+                    Console.ForegroundColor = ConsoleColor.Blue;
+                    Console.WriteLine("\n[State Snapshot Received]");
+                    Console.ResetColor();
+                    continue;
             }
 
             // Display streaming content
@@ -95,14 +130,6 @@ try
                         Console.ResetColor();
                         break;
 
-                    case DataContent dataContent when dataContent.MediaType == "application/json":
-                        // This is a state snapshot - the StatefulAgent has already updated the state
-                        stateReceived = true;
-                        Console.ForegroundColor = ConsoleColor.Blue;
-                        Console.WriteLine("\n[State Snapshot Received]");
-                        Console.ResetColor();
-                        break;
-
                     case ErrorContent errorContent:
                         Console.ForegroundColor = ConsoleColor.Red;
                         Console.WriteLine($"\n[Error: {errorContent.Message}]");
@@ -112,20 +139,39 @@ try
             }
         }
 
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"\n[Run Finished - Session: {sessionId}]");
-        Console.ResetColor();
-
         // Display final state if received
         if (stateReceived)
         {
             DisplayState(agent.State.Recipe);
+        }
+
+        // Exit after single message in non-interactive mode
+        if (!interactiveMode)
+        {
+            break;
         }
     }
 }
 catch (Exception ex)
 {
     Console.WriteLine($"\nAn error occurred: {ex.Message}");
+}
+
+// Helper function to extract AG-UI BaseEvent from the RawRepresentation chain
+static BaseEvent? GetAGUIEvent(AgentResponseUpdate update)
+{
+    return FindBaseEvent(update.RawRepresentation);
+
+    static BaseEvent? FindBaseEvent(object? obj)
+    {
+        return obj switch
+        {
+            BaseEvent baseEvent => baseEvent,
+            AgentResponseUpdate aru => FindBaseEvent(aru.RawRepresentation),
+            ChatResponseUpdate cru => FindBaseEvent(cru.RawRepresentation),
+            _ => null
+        };
+    }
 }
 
 static void DisplayState(RecipeState? state)

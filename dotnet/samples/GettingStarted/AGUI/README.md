@@ -199,6 +199,72 @@ cd Step05_StateManagement/Client
 dotnet run
 ```
 
+### Step06_RawEvents
+
+Demonstrates raw event handling in AG-UI.
+
+### Step07_ThinkingEvents
+
+Demonstrates thinking event streaming in AG-UI.
+
+### Step08_MultimodalMessages
+
+An AG-UI server and client that demonstrate multimodal message support - sending images, audio, documents, and other media content to AI agents.
+
+#### Server (`Step08_MultimodalMessages/Server`)
+
+A vision-capable AG-UI server that can process images and other media. Demonstrates:
+
+- Setting up a vision-capable AI agent (requires gpt-4o or gpt-4o-mini)
+- Receiving multimodal messages with binary content
+- Processing images embedded in user messages
+- Converting AG-UI multimodal content to Microsoft.Extensions.AI types
+
+**Run the server:**
+
+```bash
+cd Step08_MultimodalMessages/Server
+dotnet run --urls http://localhost:8888
+```
+
+> **Note:** Ensure `AZURE_OPENAI_DEPLOYMENT_NAME` is set to a vision-capable model like `gpt-4o` or `gpt-4o-mini`.
+
+#### Client (`Step08_MultimodalMessages/Client`)
+
+An interactive client that can send images and media along with text messages. Demonstrates:
+
+- Loading images from local files
+- Creating `DataContent` with binary data and MIME types
+- Creating `UriContent` for URL references
+- Combining text and media in multimodal messages
+- Interactive command system for media management
+
+**Run the client:**
+
+```bash
+cd Step08_MultimodalMessages/Client
+dotnet run
+```
+
+**Client Commands:**
+- `/image <path>` - Load an image file to send with your next message
+- `/url <url>` - Add a URL reference to send with your next message
+- `/clear` - Clear any loaded media
+- `/help` - Show available commands
+
+**Example workflow:**
+```
+User: /image C:\photos\cat.png
+✓ Image loaded: cat.png (245 KB, image/png)
+  Type your question about the image to send it.
+
+User: What animal is in this image?
+  [Sending message with attached media: cat.png (245 KB, image/png)]
+[Run Started - Session: abc123, Run: xyz789]
+This image shows a cat...
+[Run Finished - Session: abc123]
+```
+
 ## How AG-UI Works
 
 ### Server-Side
@@ -284,6 +350,7 @@ The samples above demonstrate the AG-UI features currently available in C#:
 - ✅ **Streaming Responses**: Real-time Server-Sent Events
 - ✅ **State Management**: State schemas with predictive updates
 - ✅ **Human-in-the-Loop**: Approval workflows for sensitive operations
+- ✅ **Multimodal Messages**: Images, audio, documents, and other media content
 
 ### Coming Soon to C#
 

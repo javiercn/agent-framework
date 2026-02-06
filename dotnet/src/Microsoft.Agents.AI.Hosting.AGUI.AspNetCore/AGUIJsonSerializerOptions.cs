@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 
 using System.Text.Json;
+using AGUI.Protocol;
 
 namespace Microsoft.Agents.AI.Hosting.AGUI.AspNetCore;
 

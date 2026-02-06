@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using Microsoft.Agents.AI.AGUI.Shared;
+using AGUI.Protocol;
 
 namespace Microsoft.Agents.AI.AGUI.UnitTests;
 
@@ -20,7 +20,7 @@ public sealed class AGUIJsonSerializerContextTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }]
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }]
         };
 
         // Act
@@ -72,7 +72,7 @@ public sealed class AGUIJsonSerializerContextTests
         {
             ThreadId = "thread1",
             RunId = "run1",
-            Messages = [new AGUIUserMessage { Id = "m1", Content = "Test" }],
+            Messages = [new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Test" }] }],
             State = JsonSerializer.SerializeToElement(new { key = "value" }),
             Context = [new AGUIContextItem { Description = "ctx1", Value = "value1" }],
             ForwardedProperties = JsonSerializer.SerializeToElement(new { prop1 = "val1" })
@@ -119,7 +119,7 @@ public sealed class AGUIJsonSerializerContextTests
             RunId = "run1",
             Messages =
             [
-                new AGUIUserMessage { Id = "m1", Content = "First" },
+                new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "First" }] },
                 new AGUIAssistantMessage { Id = "m2", Content = "Second" }
             ],
             Context = [
@@ -137,7 +137,7 @@ public sealed class AGUIJsonSerializerContextTests
         Assert.Equal(original.ThreadId, deserialized.ThreadId);
         Assert.Equal(original.RunId, deserialized.RunId);
         Assert.Equal(2, deserialized.Messages.Count());
-        Assert.Equal(2, deserialized.Context.Length);
+        Assert.Equal(2, deserialized.Context.Count);
     }
 
     [Fact]
@@ -553,7 +553,7 @@ public sealed class AGUIJsonSerializerContextTests
     public void AGUIMessage_Serializes_WithIdRoleAndContent()
     {
         // Arrange
-        AGUIMessage message = new AGUIUserMessage() { Id = "m1", Content = "Hello" };
+        AGUIMessage message = new AGUIUserMessage { Id = "m1", Content = [new AGUITextInputContent { Text = "Hello" }] };
 
         // Act
         string json = JsonSerializer.Serialize(message, AGUIJsonSerializerContext.Default.AGUIMessage);
@@ -587,7 +587,8 @@ public sealed class AGUIJsonSerializerContextTests
         Assert.NotNull(message);
         Assert.Equal("m1", message.Id);
         Assert.Equal(AGUIRoles.User, message.Role);
-        Assert.Equal("Test message", ((AGUIUserMessage)message).Content);
+        AGUIInputContent contentItem = Assert.Single(((AGUIUserMessage)message).Content);
+        Assert.Equal("Test message", ((AGUITextInputContent)contentItem).Text);
     }
 
     [Fact]
@@ -626,7 +627,7 @@ public sealed class AGUIJsonSerializerContextTests
         Assert.NotNull(message);
         Assert.NotNull(message.Id);
         Assert.NotNull(message.Role);
-        Assert.NotNull(((AGUIUserMessage)message).Content);
+        Assert.NotEmpty(((AGUIUserMessage)message).Content);
     }
 
     [Fact]
@@ -788,20 +789,17 @@ public sealed class AGUIJsonSerializerContextTests
     public void AGUIUserMessage_SerializesAndDeserializes_Correctly()
     {
         // Arrange
-        var originalMessage = new AGUIUserMessage
-        {
-            Id = "user1",
-            Content = "Hello, assistant!"
-        };
+        var originalMessage = new AGUIUserMessage { Id = "user1", Content = [new AGUITextInputContent { Text = "Hello, assistant!" }] };
 
-        // Act
-        string json = JsonSerializer.Serialize(originalMessage, AGUIJsonSerializerContext.Default.AGUIUserMessage);
-        var deserialized = JsonSerializer.Deserialize(json, AGUIJsonSerializerContext.Default.AGUIUserMessage);
+        // Act - Serialize and deserialize through AGUIMessage to use the custom converter which handles the Content property
+        string json = JsonSerializer.Serialize<AGUIMessage>(originalMessage, AGUIJsonSerializerContext.Default.Options);
+        var deserialized = JsonSerializer.Deserialize<AGUIMessage>(json, AGUIJsonSerializerContext.Default.Options) as AGUIUserMessage;
 
         // Assert
         Assert.NotNull(deserialized);
         Assert.Equal("user1", deserialized.Id);
-        Assert.Equal("Hello, assistant!", deserialized.Content);
+        AGUIInputContent contentItem = Assert.Single(deserialized.Content);
+        Assert.Equal("Hello, assistant!", ((AGUITextInputContent)contentItem).Text);
     }
 
     [Fact]
@@ -970,7 +968,7 @@ public sealed class AGUIJsonSerializerContextTests
         [
             new AGUISystemMessage { Id = "1", Content = "System message" },
             new AGUIDeveloperMessage { Id = "2", Content = "Developer message" },
-            new AGUIUserMessage { Id = "3", Content = "User message" },
+            new AGUIUserMessage { Id = "3", Content = [new AGUITextInputContent { Text = "User message" }] },
             new AGUIAssistantMessage { Id = "4", Content = "Assistant message" },
             new AGUIToolMessage { Id = "5", ToolCallId = "call_1", Content = "{\"result\":\"success\"}" }
         ];

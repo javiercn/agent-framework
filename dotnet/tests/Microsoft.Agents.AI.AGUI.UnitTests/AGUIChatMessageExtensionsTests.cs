@@ -4,7 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
-using Microsoft.Agents.AI.AGUI.Shared;
+using AGUI.Protocol;
+using Microsoft.Agents.AI.AGUI.Extensions;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace Microsoft.Agents.AI.AGUI.UnitTests;
@@ -32,7 +34,7 @@ public sealed class WeatherResponse
 internal sealed partial class CustomTypesContext : JsonSerializerContext;
 
 /// <summary>
-/// Unit tests for the <see cref="AGUIChatMessageExtensions"/> class.
+/// Unit tests for the <see cref="ServerAGUIChatMessageExtensions"/> and <see cref="ClientAGUIChatMessageExtensions"/> classes.
 /// </summary>
 public sealed class AGUIChatMessageExtensionsTests
 {
@@ -56,11 +58,7 @@ public sealed class AGUIChatMessageExtensionsTests
         // Arrange
         List<AGUIMessage> aguiMessages =
         [
-            new AGUIUserMessage
-            {
-                Id = "msg1",
-                Content = "Hello"
-            }
+            new AGUIUserMessage { Id = "msg1", Content = [new AGUITextInputContent { Text = "Hello" }] }
         ];
 
         // Act
@@ -78,9 +76,9 @@ public sealed class AGUIChatMessageExtensionsTests
         // Arrange
         List<AGUIMessage> aguiMessages =
         [
-            new AGUIUserMessage { Id = "msg1", Content = "First" },
+            new AGUIUserMessage { Id = "msg1", Content = [new AGUITextInputContent { Text = "First" }] },
             new AGUIAssistantMessage { Id = "msg2", Content = "Second" },
-            new AGUIUserMessage { Id = "msg3", Content = "Third" }
+            new AGUIUserMessage { Id = "msg3", Content = [new AGUITextInputContent { Text = "Third" }] }
         ];
 
         // Act
@@ -100,7 +98,7 @@ public sealed class AGUIChatMessageExtensionsTests
         List<AGUIMessage> aguiMessages =
         [
             new AGUISystemMessage { Id = "msg1", Content = "System message" },
-            new AGUIUserMessage { Id = "msg2", Content = "User message" },
+            new AGUIUserMessage { Id = "msg2", Content = [new AGUITextInputContent { Text = "User message" }] },
             new AGUIAssistantMessage { Id = "msg3", Content = "Assistant message" },
             new AGUIDeveloperMessage { Id = "msg4", Content = "Developer message" }
         ];
@@ -146,7 +144,8 @@ public sealed class AGUIChatMessageExtensionsTests
         AGUIMessage message = Assert.Single(aguiMessages);
         Assert.Equal("msg1", message.Id);
         Assert.Equal(AGUIRoles.User, message.Role);
-        Assert.Equal("Hello", ((AGUIUserMessage)message).Content);
+        AGUIInputContent contentItem = Assert.Single(((AGUIUserMessage)message).Content);
+        Assert.Equal("Hello", ((AGUITextInputContent)contentItem).Text);
     }
 
     [Fact]
@@ -165,9 +164,9 @@ public sealed class AGUIChatMessageExtensionsTests
 
         // Assert
         Assert.Equal(3, aguiMessages.Count);
-        Assert.Equal("First", ((AGUIUserMessage)aguiMessages[0]).Content);
+        Assert.Equal("First", ((AGUITextInputContent)((AGUIUserMessage)aguiMessages[0]).Content[0]).Text);
         Assert.Equal("Second", ((AGUIAssistantMessage)aguiMessages[1]).Content);
-        Assert.Equal("Third", ((AGUIUserMessage)aguiMessages[2]).Content);
+        Assert.Equal("Third", ((AGUITextInputContent)((AGUIUserMessage)aguiMessages[2]).Content[0]).Text);
     }
 
     [Fact]
@@ -195,7 +194,7 @@ public sealed class AGUIChatMessageExtensionsTests
     public void MapChatRole_WithValidRole_ReturnsCorrectChatRole(string aguiRole, string expectedRoleValue)
     {
         // Arrange & Act
-        ChatRole role = AGUIChatMessageExtensions.MapChatRole(aguiRole);
+        ChatRole role = ServerAGUIChatMessageExtensions.MapChatRole(aguiRole);
 
         // Assert
         Assert.Equal(expectedRoleValue, role.Value);
@@ -205,7 +204,7 @@ public sealed class AGUIChatMessageExtensionsTests
     public void MapChatRole_WithUnknownRole_ThrowsInvalidOperationException()
     {
         // Arrange & Act & Assert
-        Assert.Throws<InvalidOperationException>(() => AGUIChatMessageExtensions.MapChatRole("unknown"));
+        Assert.Throws<InvalidOperationException>(() => ServerAGUIChatMessageExtensions.MapChatRole("unknown"));
     }
 
     [Fact]
@@ -361,7 +360,7 @@ public sealed class AGUIChatMessageExtensionsTests
     public void MapChatRole_WithToolRole_ReturnsToolChatRole()
     {
         // Arrange & Act
-        ChatRole role = AGUIChatMessageExtensions.MapChatRole(AGUIRoles.Tool);
+        ChatRole role = ServerAGUIChatMessageExtensions.MapChatRole(AGUIRoles.Tool);
 
         // Assert
         Assert.Equal(ChatRole.Tool, role);

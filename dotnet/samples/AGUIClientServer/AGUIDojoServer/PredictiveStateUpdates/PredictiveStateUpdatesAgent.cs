@@ -3,6 +3,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using AGUI.Protocol;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
@@ -73,24 +74,17 @@ internal sealed class PredictiveStateUpdatesAgent : DelegatingAIAgent
                     int length = Math.Min(ChunkSize, documentContent.Length - i);
                     string chunk = documentContent.Substring(0, i + length);
 
-                    // Prepare predictive state update as DataContent
+                    // Prepare predictive state update as StateSnapshotEvent
                     var stateUpdate = new DocumentState { Document = chunk };
-                    byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(
-                        stateUpdate,
-                        this._jsonSerializerOptions.GetTypeInfo(typeof(DocumentState)));
+                    var stateJson = JsonSerializer.SerializeToElement(stateUpdate, this._jsonSerializerOptions);
 
-                    yield return new AgentResponseUpdate(
-                        new ChatResponseUpdate(role: ChatRole.Assistant, [new DataContent(stateBytes, "application/json")])
-                        {
-                            MessageId = "snapshot" + Guid.NewGuid().ToString("N"),
-                            CreatedAt = update.CreatedAt,
-                            ResponseId = update.ResponseId,
-                            AdditionalProperties = update.AdditionalProperties,
-                            AuthorName = update.AuthorName,
-                            ContinuationToken = update.ContinuationToken,
-                        })
+                    yield return new AgentResponseUpdate
                     {
-                        AgentId = update.AgentId
+                        AgentId = update.AgentId,
+                        CreatedAt = update.CreatedAt,
+                        ResponseId = update.ResponseId,
+                        Contents = [],
+                        RawRepresentation = new StateSnapshotEvent { Snapshot = stateJson }
                     };
 
                     // Small delay to simulate streaming

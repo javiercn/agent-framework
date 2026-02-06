@@ -8,7 +8,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Agents.AI.AGUI.Shared;
+using AGUI.Protocol;
 using Microsoft.Extensions.AI;
 
 namespace Microsoft.Agents.AI.AGUI.UnitTests;
@@ -1284,13 +1284,10 @@ public sealed class AGUIAgentTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_ExtractsStateFromDataContent_AndRemovesStateMessageAsync()
+    public async Task GetStreamingResponseAsync_WithRawRepresentationFactory_PassesStateToServerAsync()
     {
         // Arrange
         var stateData = new { counter = 42, status = "active" };
-        string stateJson = JsonSerializer.Serialize(stateData);
-        byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
-        var dataContent = new DataContent(stateBytes, "application/json");
 
         var captureHandler = new StateCapturingTestDelegatingHandler();
         captureHandler.AddResponse(
@@ -1304,14 +1301,19 @@ public sealed class AGUIAgentTests
         using HttpClient httpClient = new(captureHandler);
 
         var chatClient = new AGUIChatClient(httpClient, "http://localhost/agent", null, AGUIJsonSerializerContext.Default.Options);
-        List<ChatMessage> messages =
-        [
-            new ChatMessage(ChatRole.User, "Hello"),
-            new ChatMessage(ChatRole.System, [dataContent])
-        ];
+        List<ChatMessage> messages = [new ChatMessage(ChatRole.User, "Hello")];
+
+        // Use RawRepresentationFactory to pass state via RunAgentInput
+        var options = new ChatOptions
+        {
+            RawRepresentationFactory = _ => new RunAgentInput
+            {
+                State = JsonSerializer.SerializeToElement(stateData)
+            }
+        };
 
         // Act
-        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, null))
+        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, options))
         {
             // Just consume the stream
         }
@@ -1322,12 +1324,12 @@ public sealed class AGUIAgentTests
         Assert.Equal(42, captureHandler.CapturedState.Value.GetProperty("counter").GetInt32());
         Assert.Equal("active", captureHandler.CapturedState.Value.GetProperty("status").GetString());
 
-        // Verify state message was removed - only user message should be in the request
+        // All messages should still be in the request (no removal)
         Assert.Equal(1, captureHandler.CapturedMessageCount);
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_WithNoStateDataContent_SendsEmptyStateAsync()
+    public async Task GetStreamingResponseAsync_WithNoRawRepresentationFactory_SendsDefaultStateAsync()
     {
         // Arrange
         var captureHandler = new StateCapturingTestDelegatingHandler();
@@ -1344,7 +1346,7 @@ public sealed class AGUIAgentTests
         var chatClient = new AGUIChatClient(httpClient, "http://localhost/agent", null, AGUIJsonSerializerContext.Default.Options);
         List<ChatMessage> messages = [new ChatMessage(ChatRole.User, "Hello")];
 
-        // Act
+        // Act - No RawRepresentationFactory provided
         await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, null))
         {
             // Just consume the stream
@@ -1352,35 +1354,41 @@ public sealed class AGUIAgentTests
 
         // Assert
         Assert.True(captureHandler.RequestWasMade);
+        // Without RawRepresentationFactory, State should be default (undefined)
         Assert.Null(captureHandler.CapturedState);
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_WithMalformedStateJson_ThrowsInvalidOperationExceptionAsync()
+    public async Task GetStreamingResponseAsync_WithRawRepresentationFactory_NonRunAgentInput_IgnoredAsync()
     {
         // Arrange
-        byte[] invalidJson = System.Text.Encoding.UTF8.GetBytes("{invalid json");
-        var dataContent = new DataContent(invalidJson, "application/json");
-
-        using HttpClient httpClient = this.CreateMockHttpClient([]);
+        var captureHandler = new StateCapturingTestDelegatingHandler();
+        captureHandler.AddResponse(
+        [
+            new RunStartedEvent { ThreadId = "thread1", RunId = "run1" },
+            new RunFinishedEvent { ThreadId = "thread1", RunId = "run1" }
+        ]);
+        using HttpClient httpClient = new(captureHandler);
 
         var chatClient = new AGUIChatClient(httpClient, "http://localhost/agent", null, AGUIJsonSerializerContext.Default.Options);
-        List<ChatMessage> messages =
-        [
-            new ChatMessage(ChatRole.User, "Hello"),
-            new ChatMessage(ChatRole.System, [dataContent])
-        ];
+        List<ChatMessage> messages = [new ChatMessage(ChatRole.User, "Hello")];
 
-        // Act & Assert
-        InvalidOperationException ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        // RawRepresentationFactory returns something other than RunAgentInput
+        var options = new ChatOptions
         {
-            await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, null))
-            {
-                // Just consume the stream
-            }
-        });
+            RawRepresentationFactory = _ => "not a RunAgentInput"
+        };
 
-        Assert.Contains("Failed to deserialize state JSON", ex.Message);
+        // Act
+        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, options))
+        {
+            // Just consume the stream
+        }
+
+        // Assert
+        Assert.True(captureHandler.RequestWasMade);
+        // Non-RunAgentInput return value should be ignored
+        Assert.Null(captureHandler.CapturedState);
     }
 
     [Fact]
@@ -1388,9 +1396,6 @@ public sealed class AGUIAgentTests
     {
         // Arrange
         var emptyState = new { };
-        string stateJson = JsonSerializer.Serialize(emptyState);
-        byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
-        var dataContent = new DataContent(stateBytes, "application/json");
 
         var captureHandler = new StateCapturingTestDelegatingHandler();
         captureHandler.AddResponse(
@@ -1401,14 +1406,19 @@ public sealed class AGUIAgentTests
         using HttpClient httpClient = new(captureHandler);
 
         var chatClient = new AGUIChatClient(httpClient, "http://localhost/agent", null, AGUIJsonSerializerContext.Default.Options);
-        List<ChatMessage> messages =
-        [
-            new ChatMessage(ChatRole.User, "Hello"),
-            new ChatMessage(ChatRole.System, [dataContent])
-        ];
+        List<ChatMessage> messages = [new ChatMessage(ChatRole.User, "Hello")];
+
+        // Use RawRepresentationFactory to pass empty state
+        var options = new ChatOptions
+        {
+            RawRepresentationFactory = _ => new RunAgentInput
+            {
+                State = JsonSerializer.SerializeToElement(emptyState)
+            }
+        };
 
         // Act
-        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, null))
+        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, options))
         {
             // Just consume the stream
         }
@@ -1420,50 +1430,42 @@ public sealed class AGUIAgentTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_OnlyProcessesDataContentFromLastMessage_IgnoresEarlierOnesAsync()
+    public async Task GetStreamingResponseAsync_WithRawRepresentationFactory_PassesThreadIdAndRunIdAsync()
     {
         // Arrange
-        var oldState = new { counter = 10 };
-        string oldStateJson = JsonSerializer.Serialize(oldState);
-        byte[] oldStateBytes = System.Text.Encoding.UTF8.GetBytes(oldStateJson);
-        var oldDataContent = new DataContent(oldStateBytes, "application/json");
-
-        var newState = new { counter = 20 };
-        string newStateJson = JsonSerializer.Serialize(newState);
-        byte[] newStateBytes = System.Text.Encoding.UTF8.GetBytes(newStateJson);
-        var newDataContent = new DataContent(newStateBytes, "application/json");
-
         var captureHandler = new StateCapturingTestDelegatingHandler();
         captureHandler.AddResponse(
         [
-            new RunStartedEvent { ThreadId = "thread1", RunId = "run1" },
-            new RunFinishedEvent { ThreadId = "thread1", RunId = "run1" }
+            new RunStartedEvent { ThreadId = "custom-thread", RunId = "custom-run" },
+            new RunFinishedEvent { ThreadId = "custom-thread", RunId = "custom-run" }
         ]);
         using HttpClient httpClient = new(captureHandler);
 
         var chatClient = new AGUIChatClient(httpClient, "http://localhost/agent", null, AGUIJsonSerializerContext.Default.Options);
-        List<ChatMessage> messages =
-        [
-            new ChatMessage(ChatRole.User, "First message"),
-            new ChatMessage(ChatRole.System, [oldDataContent]),
-            new ChatMessage(ChatRole.User, "Second message"),
-            new ChatMessage(ChatRole.System, [newDataContent])
-        ];
+        List<ChatMessage> messages = [new ChatMessage(ChatRole.User, "Hello")];
+
+        // Use RawRepresentationFactory to pass custom thread and run IDs
+        var options = new ChatOptions
+        {
+            RawRepresentationFactory = _ => new RunAgentInput
+            {
+                ThreadId = "custom-thread",
+                RunId = "custom-run",
+                ParentRunId = "parent-run"
+            }
+        };
 
         // Act
-        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, null))
+        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, options))
         {
             // Just consume the stream
         }
 
         // Assert
         Assert.True(captureHandler.RequestWasMade);
-        Assert.NotNull(captureHandler.CapturedState);
-        // Should use the new state from the last message
-        Assert.Equal(20, captureHandler.CapturedState.Value.GetProperty("counter").GetInt32());
-
-        // Should have removed only the last state message
-        Assert.Equal(3, captureHandler.CapturedMessageCount);
+        Assert.Equal("custom-thread", captureHandler.CapturedThreadId);
+        Assert.Equal("custom-run", captureHandler.CapturedRunId);
+        Assert.Equal("parent-run", captureHandler.CapturedParentRunId);
     }
 
     [Fact]
@@ -1537,10 +1539,20 @@ public sealed class AGUIAgentTests
             }
         }
 
-        // Second turn: send the received state back
+        // Second turn: send the received state back via RawRepresentationFactory
         Assert.NotNull(receivedStateContent);
-        messages.Add(new ChatMessage(ChatRole.System, [receivedStateContent]));
-        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, null))
+        string receivedJson = System.Text.Encoding.UTF8.GetString(receivedStateContent.Data.ToArray());
+        JsonElement receivedState = JsonSerializer.Deserialize<JsonElement>(receivedJson);
+
+        var options = new ChatOptions
+        {
+            RawRepresentationFactory = _ => new RunAgentInput
+            {
+                State = receivedState
+            }
+        };
+
+        await foreach (var _ in chatClient.GetStreamingResponseAsync(messages, options))
         {
             // Just consume the stream
         }
@@ -1690,6 +1702,9 @@ internal sealed class StateCapturingTestDelegatingHandler : DelegatingHandler
     public bool RequestWasMade { get; private set; }
     public JsonElement? CapturedState { get; private set; }
     public int CapturedMessageCount { get; private set; }
+    public string? CapturedThreadId { get; private set; }
+    public string? CapturedRunId { get; private set; }
+    public string? CapturedParentRunId { get; private set; }
 
     public void AddResponse(BaseEvent[] events)
     {
@@ -1714,6 +1729,9 @@ internal sealed class StateCapturingTestDelegatingHandler : DelegatingHandler
                 this.CapturedState = input.State;
             }
             this.CapturedMessageCount = input.Messages.Count();
+            this.CapturedThreadId = input.ThreadId;
+            this.CapturedRunId = input.RunId;
+            this.CapturedParentRunId = input.ParentRunId;
         }
 
         if (this._responseFactories.Count == 0)

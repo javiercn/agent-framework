@@ -4,7 +4,9 @@
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "AZURE_OPENAI_ENDPOINT": "https://ag-ui-agent-framework.openai.azure.com/",
+        "AZURE_OPENAI_DEPLOYMENT_NAME": "gpt-4.1-mini"
       },
       "applicationUrl": "http://localhost:5018"
     }
